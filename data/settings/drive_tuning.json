@@ -1,0 +1,23 @@
+{
+  "active": "default",
+  "revision": 1,
+  "profiles": {
+    "default": {
+      "name": "default",
+      "calibration_pwm": 80,
+      "cruise_pwm": 120,
+      "max_pwm": 180,
+      "turn_inner_percent": 35,
+      "ramp_step_pwm": 2,
+      "ramp_period_ms": 20,
+      "front_stop_cm": 18,
+      "rear_stop_cm": 15,
+      "tof_stop_mm": 150,
+      "sensor_safety_default": true,
+      "autonomy_decision_interval_s": 1.5,
+      "autonomy_command_ms": 900,
+      "robot_name": "Машинка"
+    }
+  },
+  "updated_at": "2026-08-07T22:14:20.912280+00:00"
+}

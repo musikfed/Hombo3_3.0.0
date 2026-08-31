@@ -1,0 +1,10 @@
+Hombo3 3.0 — PRIVATE LOCAL PACKAGE
+
+This local package intentionally contains the migrated .env and MicroPython device/secrets.py
+requested for the robot. Do not upload those two files to a public repository.
+They are listed in .gitignore. A separate PUBLIC_NO_SECRETS archive is provided for publication.
+
+RU:
+Этот локальный пакет намеренно содержит перенесённые .env и device/secrets.py.
+Не публикуйте эти два файла. Они добавлены в .gitignore.
+Для Git подготовлен отдельный архив PUBLIC_NO_SECRETS.

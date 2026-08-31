@@ -1,0 +1,20 @@
+[
+  {
+    "name": "front_ultrasonic_emergency_log",
+    "enabled": true,
+    "condition": {"field": "front_cm", "operator": "lte", "value": 18},
+    "action": {"type": "stop", "say": "Впереди препятствие"}
+  },
+  {
+    "name": "rear_ultrasonic_emergency_log",
+    "enabled": true,
+    "condition": {"field": "rear_cm", "operator": "lte", "value": 15},
+    "action": {"type": "stop", "say": "Сзади препятствие"}
+  },
+  {
+    "name": "tof_emergency_log",
+    "enabled": true,
+    "condition": {"field": "tof_mm", "operator": "lte", "value": 150},
+    "action": {"type": "stop", "say": "Лазерный дальномер видит препятствие"}
+  }
+]

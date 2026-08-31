@@ -1,0 +1,19 @@
+{
+  "vision": {
+    "enabled": false,
+    "classes": [
+      "person",
+      "chair",
+      "bottle"
+    ]
+  },
+  "voice": {
+    "enabled": true,
+    "announce_actions": true,
+    "announce_observations": true,
+    "announce_critical": true
+  },
+  "autonomy": {
+    "goal": "Безопасно исследовать пространство и не сталкиваться с препятствиями."
+  }
+}

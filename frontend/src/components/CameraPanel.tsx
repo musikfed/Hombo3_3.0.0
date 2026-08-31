@@ -1,0 +1,128 @@
+﻿import { useEffect, useRef, useState } from 'react'
+import { Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Crosshair, RotateCcw, Volume2, ZoomIn, ZoomOut } from 'lucide-react'
+import type { VisionStatus } from '../api'
+import { Panel, StatusPill, Toggle } from './Ui'
+
+const clampZoom = (value: number) => Math.max(1, Math.min(2.5, value))
+const readZoom = () => {
+  try { return clampZoom(Number(localStorage.getItem('hombo3.camera.digital_zoom')) || 1) } catch { return 1 }
+}
+
+export function CameraPanel({ vision, onPtz, onVisionToggle }: {
+  vision: VisionStatus
+  onPtz: (pan:number, tilt:number, zoom?:number)=>void
+  onVisionToggle: (enabled:boolean)=>void
+}) {
+  const [digitalZoom, setDigitalZoom] = useState(readZoom)
+  const imageRef = useRef<HTMLImageElement | null>(null)
+  const [videoTransport, setVideoTransport] = useState<'ws'|'mjpeg'>('ws')
+  useEffect(()=>{ try { localStorage.setItem('hombo3.camera.digital_zoom', String(digitalZoom)) } catch {} },[digitalZoom])
+
+  // The old multipart-MJPEG <img> path can be buffered by browsers for seconds.
+  // WS sends raw JPEGs with latest-frame semantics: if rendering/network is slow,
+  // intermediate frames are dropped instead of building a stale queue.
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image) return
+    const demo = new URLSearchParams(location.search).get('demo') === '1'
+    if (demo) return
+
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    const socket = new WebSocket(`${protocol}://${location.host}/ws/camera`)
+    socket.binaryType = 'blob'
+    let currentUrl = ''
+    let gotFrame = false
+    let fallbackActive = false
+
+    const useMjpegFallback = () => {
+      if (gotFrame || fallbackActive) return
+      fallbackActive = true
+      setVideoTransport('mjpeg')
+      image.src = `/api/camera/stream?fallback=${Date.now()}`
+      try { socket.close() } catch {}
+    }
+    const fallbackTimer = window.setTimeout(useMjpegFallback, 2500)
+
+    socket.onmessage = event => {
+      if (fallbackActive) return
+      gotFrame = true
+      window.clearTimeout(fallbackTimer)
+      setVideoTransport('ws')
+      const blob = event.data instanceof Blob ? event.data : new Blob([event.data], {type:'image/jpeg'})
+      const nextUrl = URL.createObjectURL(blob)
+      const previousUrl = currentUrl
+      currentUrl = nextUrl
+      image.onload = () => { if (previousUrl) URL.revokeObjectURL(previousUrl) }
+      image.src = nextUrl
+    }
+    socket.onerror = useMjpegFallback
+    socket.onclose = () => { if (!gotFrame) useMjpegFallback() }
+
+    return () => {
+      window.clearTimeout(fallbackTimer)
+      try { socket.close() } catch {}
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+    }
+  }, [])
+
+  const zoomBy = (delta: number) => setDigitalZoom(previous => clampZoom(Number((previous + delta).toFixed(2))))
+  const visionDiagnostic = vision.error || (!vision.available
+    ? `provider=${vision.provider_ok?'OK':'ERR'} · ultralytics=${vision.package_ok?'OK':'ERR'} · model=${vision.model_exists?'OK':'ERR'} · ${vision.model_path||''}`
+    : `${vision.provider}: ${vision.model || 'модель не выбрана'}`)
+
+  return <Panel
+    title="REGGO · ONVIF"
+    icon={<Camera size={18}/>}
+    className="camera-panel"
+    actions={<><StatusPill label={`ВИДЕО · ${videoTransport === 'ws' ? 'WS LATEST' : 'MJPEG FALLBACK'}`} tone="good"/><StatusPill label="МИКРОФОН · НАЖМИ ▶" tone="info"/></>}
+  >
+    <div className="camera-frame">
+      <img
+        ref={imageRef}
+        alt="Поток камеры REGGO"
+        style={{ transform: `scale(${digitalZoom})` }}
+      />
+      <div className="camera-hud top-left"><span>лёгкий видеопрофиль</span><span>зум ×{digitalZoom.toFixed(2)}</span></div>
+      <div className="camera-hud top-right"><Volume2 size={15}/><span>звук отдельным потоком</span></div>
+      <div className="reticle"><i/><i/><i/><i/></div>
+      {vision.detections.map((item, index) => (
+        <div className={`detection-box box-${index}`} key={`${item.label}-${index}`}>
+          <span>{item.label} · {Math.round(item.confidence * 100)}%</span>
+        </div>
+      ))}
+    </div>
+
+    <div className="camera-audio-row">
+      <span><Volume2 size={16}/> Микрофон камеры → динамики Acer</span>
+      <audio controls preload="none" src="/api/camera/audio"/>
+    </div>
+
+    <div className="camera-controls">
+      <div className="ptz-pad" aria-label="Управление поворотом камеры">
+        <button className="up" onClick={() => onPtz(0, .55)}><ChevronUp/></button>
+        {/* Semantic PTZ contract: negative pan = LEFT, positive pan = RIGHT. */}
+        <button className="left" onClick={() => onPtz(-.55, 0)}><ChevronLeft/></button>
+        <button className="center" onClick={() => onPtz(0, 0)}><Crosshair/></button>
+        <button className="right" onClick={() => onPtz(.55, 0)}><ChevronRight/></button>
+        <button className="down" onClick={() => onPtz(0, -.55)}><ChevronDown/></button>
+      </div>
+      <div className="camera-side-controls">
+        <div className="zoom-row">
+          <button onClick={() => zoomBy(-.25)} disabled={digitalZoom <= 1}><ZoomOut size={18}/>Зум −</button>
+          <button onClick={() => setDigitalZoom(1)}><RotateCcw size={18}/>×1</button>
+          <button onClick={() => zoomBy(.25)} disabled={digitalZoom >= 2.5}><ZoomIn size={18}/>Зум +</button>
+        </div>
+        <small className="vision-note">Зум цифровой; автофокус отправляет ONVIF Imaging AUTO, если REGGO его поддерживает.</small>
+        <Toggle checked={vision.enabled} onChange={onVisionToggle} label="Распознавание объектов"/>
+        <small className={vision.error ? 'vision-error' : 'vision-note'}>{visionDiagnostic}</small>
+        <div className="object-chips">
+          {vision.detections.length ? vision.detections.map((item, index) => (
+            <span key={`${item.label}-chip-${index}`}>{item.label}<b>{Math.round(item.confidence * 100)}%</b></span>
+          )) : <span className="muted-chip">объекты не обнаружены</span>}
+        </div>
+      </div>
+    </div>
+  </Panel>
+}
+
+

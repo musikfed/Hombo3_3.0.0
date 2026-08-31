@@ -1,0 +1,5 @@
+MicroPython ESP32-S3 SPIRAM_OCT v1.28.0 combined BIN:
+https://micropython.org/resources/firmware/ESP32_GENERIC_S3-SPIRAM_OCT-20260406-v1.28.0.bin
+
+MicroPython ESP32-S3 SPIRAM_OCT v1.28.0 app image for OTA:
+https://micropython.org/resources/firmware/ESP32_GENERIC_S3-SPIRAM_OCT-20260406-v1.28.0.app-bin

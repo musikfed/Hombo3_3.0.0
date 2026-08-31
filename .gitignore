@@ -1,0 +1,16 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+*.db
+frontend/dist/.vite/
+firmware/cache/
+firmware/core/*.app-bin
+firmware/hombowifi_s3_micropython/device/secrets.py
+firmware/hombowifi_s3_micropython/device/*.prev
+firmware/hombowifi_s3_micropython/device/.hombowifi_ota/
+.DS_Store
+firmware/legacy_arduino_s3_uno/secrets.h
