@@ -1,0 +1,7 @@
+*.bin
+*.ext2
+*.img
+stage2-work/
+build/
+__pycache__/
+.DS_Store
