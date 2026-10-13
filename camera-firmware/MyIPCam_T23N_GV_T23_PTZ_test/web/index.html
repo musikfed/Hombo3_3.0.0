@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MyIPCam OS 3.1</title>
+  <link rel="stylesheet" href="/myipcam/style.css">
+</head>
+<body>
+<div id="loginGate" class="login-gate">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <strong class="login-logo">◉ MyIPCam <small>OS 3.1 · T23N</small></strong>
+    <h1>Вход</h1>
+    <p class="muted">Локальная админка камеры</p>
+    <label>Пользователь<input id="loginUser" value="root" readonly></label>
+    <label>Пароль<input id="loginPassword" type="password" autocomplete="current-password" autofocus></label>
+    <button id="loginSubmit" type="submit">Войти</button>
+    <div id="loginMsg" class="muted"></div>
+  </form>
+</div>
+
+<div id="appRoot" hidden>
+<header class="top">
+  <button id="menuBtn" class="mobile">☰</button>
+  <strong>◉ MyIPCam <small>OS 3.1 · T23N</small></strong>
+  <span id="status">локально</span>
+  <button id="logoutBtn" class="top-logout" type="button">Выйти</button>
+</header>
+
+<div class="layout">
+<nav id="nav">
+  <button data-page="camera" class="active">▣ Камера</button>
+  <button data-page="video">◫ Видео</button>
+  <button data-page="wifi">◉ Wi-Fi</button>
+  <button data-page="audio">♫ Аудио</button>
+  <button data-page="archive">▤ Архив</button>
+  <button data-page="vpn">◇ VPN</button>
+  <button data-page="security">♙ Безопасность</button>
+  <button data-page="system">⚙ Система</button>
+</nav>
+
+<main>
+<section data-view="camera">
+  <h1>Камера</h1>
+  <div class="camgrid">
+    <div class="stack">
+      <article class="card">
+        <div class="heading">
+          <h2>Live · аппаратный H.264</h2>
+          <span class="muted"><span id="fmp4-format">—</span> · <span id="fmp4-status">подключение…</span></span>
+        </div>
+        <div class="video" id="frame">
+          <video id="fmp4-video" autoplay muted playsinline disablepictureinpicture></video>
+        </div>
+        <div class="actions">
+          <button id="fmp4-ch0" type="button">Main</button>
+          <button id="fmp4-ch1" type="button" class="active">Sub</button>
+          <button id="fullscreen" type="button">Полный экран</button>
+          <button id="snapshot" type="button">Снимок</button>
+          <span id="streamStats" class="statusline">—</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>PTZ</h2>
+        <div class="ptz">
+          <div class="pad" id="ptzPad">
+            <button data-dir="ul">↖</button><button data-dir="u">↑</button><button data-dir="ur">↗</button>
+            <button data-dir="l">←</button><button data-dir="s">■</button><button data-dir="r">→</button>
+            <button data-dir="dl">↙</button><button data-dir="d">↓</button><button data-dir="dr">↘</button>
+          </div>
+          <div class="grow">
+            <label>Шаг / скорость <output id="ptzSpeedOut">50</output>
+              <input id="ptzSpeed" type="range" min="10" max="250" value="50">
+            </label>
+            <div class="actions">
+              <button id="ptzHome">Домой</button>
+              <button id="ptzStop">Стоп</button>
+            </div>
+            <p class="muted">Нажал — движение. Отпустил — стоп. Старые команды не копятся.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="stack">
+      <article class="card">
+        <h2>Быстрый профиль</h2>
+        <label>Профиль
+          <select id="profile">
+            <option value="balanced">Баланс · 1080p15 · 2 Мбит/с</option>
+            <option value="ai">AI / YOLO · 1080p15 · 2.2 Мбит/с</option>
+            <option value="lowlat">Низкая задержка · 1080p20 · 2.8 Мбит/с</option>
+            <option value="quality">Качество · 1080p25 · 4 Мбит/с</option>
+            <option value="economy">Экономия · 720p12 · 0.9 Мбит/с</option>
+            <option value="custom">Свои настройки</option>
+          </select>
+        </label>
+        <button id="profileFill">Подставить значения</button>
+        <p class="muted">Профиль только заполняет поля. Ничего не меняется, пока не нажмёшь «Применить».</p>
+      </article>
+
+      <article class="card">
+        <h2>OpenCV / YOLO</h2>
+        <p class="muted">Для анализа лучше брать RTSP Main и выбрасывать старые кадры, если обработчик не успевает.</p>
+        <code id="rtspUrl">rtsp://CAMERA:554/ch0</code>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section data-view="video" hidden>
+  <h1>Видео</h1>
+  <article class="card">
+    <div class="heading"><h2>Основной поток · stream0</h2><span id="videoMsg" class="muted">чтение параметров…</span></div>
+    <div class="fields five">
+      <label>Ширина<input id="vWidth" type="number" min="320" max="4096" step="2"></label>
+      <label>Высота<input id="vHeight" type="number" min="240" max="2160" step="2"></label>
+      <label>FPS<input id="vFps" type="number" min="1" max="30"></label>
+      <label>Битрейт, кбит/с<input id="vBitrate" type="number" min="128" max="10000" step="50"></label>
+      <label>GOP<input id="vGop" type="number" min="1" max="240"></label>
+      <label>Rate control<select id="vMode"><option>CBR</option><option>VBR</option><option>FIXQP</option><option>SMART</option></select></label>
+      <label>Кодек<select id="vFormat"><option value="H264">H.264</option></select></label>
+      <label>Profile<input id="vProfile" type="text" placeholder="оставить как есть"></label>
+    </div>
+    <div class="actions">
+      <button id="videoReload">Прочитать заново</button>
+      <button id="videoApply">Применить</button>
+      <button id="videoSave">Применить + сохранить</button>
+    </div>
+  </article>
+</section>
+
+<section data-view="wifi" hidden>
+  <h1>Wi-Fi</h1>
+  <article class="card"><h2>Сеть камеры</h2><p>Драйвер ATBM уже работает. Следующий этап — собственный API сканирования сетей и AP <b>MyIPCam-XXXX</b>.</p><p class="muted">На этом этапе не трогаем рабочее Wi-Fi подключение, чтобы не потерять камеру.</p></article>
+</section>
+
+<section data-view="audio" hidden>
+  <h1>Аудио</h1>
+  <article class="card"><h2>Микрофон / динамик</h2><p>Аудио железо оставляем в системе, но не держим лишний браузерный канал активным без запроса.</p></article>
+</section>
+
+<section data-view="archive" hidden>
+  <h1>Архив</h1>
+  <article class="card"><h2>microSD</h2><p>ОС занимает небольшой системный участок карты; остальное позже отдаём под записи.</p></article>
+</section>
+
+<section data-view="vpn" hidden>
+  <h1>VPN</h1>
+  <article class="card"><h2>По требованию</h2><p>WireGuard / AmneziaWG не запускаются при старте камеры. Только по включению из админки.</p></article>
+</section>
+
+<section data-view="security" hidden>
+  <h1>Безопасность</h1>
+  <article class="card"><h2>MyIPCam API</h2><p>Stage2 пока использует локальную донорскую session-auth. Финальная версия получит собственный небольшой backend.</p></article>
+</section>
+
+<section data-view="system" hidden>
+  <h1>Система</h1>
+  <article class="card">
+    <h2>MyIPCam OS</h2>
+    <p>Эта тестовая сборка использует уже проверенные kernel/драйверы как донор.</p>
+    <div class="kv">
+      <span>Камера</span><b>SC2336 / T23N</b>
+      <span>Wi-Fi</span><b>ATBM6012BX</b>
+      <span>Boot</span><b>microSD 1-bit</b>
+    </div>
+  </article>
+</section>
+
+<footer>MyIPCam OS 3.1 · локальная камера · без облака</footer>
+</main>
+</div>
+</div>
+
+<script src="/myipcam/boot.js"></script>
+</body>
+</html>
