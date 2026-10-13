@@ -112,3 +112,8 @@ LLM не получает сырого GPIO. Агент работает чер�
 
 Подробная пайка: `docs/HOMBO3_PINOUT_QUICK_RU.md` и `docs/HARDWARE_BASELINE_RU.md`.
 
+## Contact / Контакты
+
+- Email: [feudor.lab@yandex.ru](mailto:feudor.lab@yandex.ru)
+- Telegram: [@Feudorlab1](https://t.me/Feudorlab1)
+
