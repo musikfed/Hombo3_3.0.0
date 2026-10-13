@@ -1,0 +1,21 @@
+name: myipcam-source-tests
+on:
+  push:
+    paths:
+      - "camera-firmware/MyIPCam_T23N_GV_T23_PTZ_test/**"
+      - ".github/workflows/myipcam-tests.yml"
+  pull_request:
+    paths:
+      - "camera-firmware/MyIPCam_T23N_GV_T23_PTZ_test/**"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: camera-firmware/MyIPCam_T23N_GV_T23_PTZ_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n build-stage2.sh tests/run.sh
+      - name: Static web tests
+        run: python3 tests/test_web_static.py web
