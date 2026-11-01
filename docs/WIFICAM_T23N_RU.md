@@ -199,3 +199,19 @@ Windows D:). Крупная LLM-модель/инференция размеща
 (RTX 3060), удалённый доступ — AmneziaWG на DEXP `.109`. Не переносить
 Windows-запуск Hombo3 в WSL по привычке от сборки прошивки.
 Схема: [PEGINELAB_LAB_ARCHITECTURE_RU.md](PEGINELAB_LAB_ARCHITECTURE_RU.md).
+
+## Ленивая вебморда камеры и независимый Hombo3
+
+На WIFICAM добавлен режим **видео по запросу** (после новой сборки SD).
+Открытие `:8090/` и вкладки PTZ не расходует видеоканал; кнопка
+«▶ Смотреть видео» подключает MJPEG только для браузера. При уходе
+из вкладки, `visibilitychange(hidden)` и `pagehide` запрос
+разрывается, Hombo3 продолжает принимать RTSP/аудио.
+
+В Windows Web UI Hombo3 скрытие вкладки освобождает браузерный
+WebSocket/MJPEG и Blob URL; **backend CameraHub остаётся активным**
+для YOLO/VectorProbe/LLM. Открытие браузера после скрытия восстанавливает
+только пользовательский UI, не требует перезапускать камеру.
+Реальное освобождение CGI/curl на T23N и стабильность FPS ещё
+проверяются после установки следующего образа.
+[Подробности в WIFICAM](https://github.com/musikfed/wificam_T23N/blob/mymarrchWFcam/docs/WEB_UI_LAZY_STREAM_RU.md).
