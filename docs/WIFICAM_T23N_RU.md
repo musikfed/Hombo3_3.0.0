@@ -215,3 +215,15 @@ WebSocket/MJPEG и Blob URL; **backend CameraHub остаётся активны
 Реальное освобождение CGI/curl на T23N и стабильность FPS ещё
 проверяются после установки следующего образа.
 [Подробности в WIFICAM](https://github.com/musikfed/wificam_T23N/blob/mymarrchWFcam/docs/WEB_UI_LAZY_STREAM_RU.md).
+
+## Обратная связь для голоса и оптики
+
+Добавлен экспериментальный ручной путь RTSP microphone → ffmpeg PCM →
+доверенный STT на CORE → LLM `allow_action=false` →
+Windows TTS → SSH динамик камеры. `CAMERA_VOICE_ENABLED=false` по умолчанию;
+секрет оператора нельзя коммитить. Постоянный wake-word/VAD пока
+не включён из-за неопределённого аудиодрайвера/обратной связи.
+
+Зеркало/вертикальный flip — только браузер, не RTSP/YOLO.
+Ручные ONVIF focus near/far и автофокус требуют физического привода.
+[Настройки, тесты и ограничения](CAMERA_PTZ_AUDIO_RU.md).
