@@ -17,6 +17,7 @@ from .announcer import announcer
 from .battery_estimator import battery_trend
 from .autonomy import AutonomyManager
 from .camera import camera_hub
+from .camera_speaker import send_pcm_to_camera
 from .config import settings
 from .database import init_database, list_events, log_event, log_telemetry
 from .memory import build_agent_context
@@ -241,7 +242,10 @@ async def lifespan(app: FastAPI):
     autonomy_pref = preferences.get("autonomy")
     autonomy.goal = str(autonomy_pref.get("goal") or autonomy.goal)
     log_event("INFO", "system", "Hombo3 control station started", {"version": "3.0.1b", "board": "ESP32-S3-DevKitC-1 N16R8", "spatial_engine": "VectorProbe"})
-    await announcer.start(robot.send_pcm)
+    # Default is still the ESP32 speaker. Route TTS to the T23N camera only
+    # when explicitly configured and key-based SSH access has been provisioned.
+    speaker_target = send_pcm_to_camera if settings.speech_output == "camera_ssh" else robot.send_pcm
+    await announcer.start(speaker_target)
     await camera_hub.start()
     await vision.start(camera_hub.latest_jpeg, announcer.say)
     telemetry_task = asyncio.create_task(telemetry_loop(), name="robot-telemetry")
