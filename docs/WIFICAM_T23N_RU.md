@@ -190,3 +190,12 @@ JPEG FPS по умолчанию бывает всего 1; при тесте м
 Проверки исходников: GitHub Actions с unittest-моками ONVIF, сборкой
 React/TypeScript, отдельным shell-тестом Thingino motors в WIFICAM.
 Это не заменяет аппаратную проверку PTZ, RTSP и фокуса.
+
+## Физические вычислительные узлы
+
+Hombo3 запускается нативно на **Windows 11 Pro ноутбука Acer Swift 3**,
+WIFICAM собирается в **WSL Ubuntu 24.04 на том же Acer** (дистрибутив на
+Windows D:). Крупная LLM-модель/инференция размещается на GPU CORE `.100`
+(RTX 3060), удалённый доступ — AmneziaWG на DEXP `.109`. Не переносить
+Windows-запуск Hombo3 в WSL по привычке от сборки прошивки.
+Схема: [PEGINELAB_LAB_ARCHITECTURE_RU.md](PEGINELAB_LAB_ARCHITECTURE_RU.md).
