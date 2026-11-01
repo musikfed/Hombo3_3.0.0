@@ -22,6 +22,10 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   const [panInvert, setPanInvert] = useState(false)
   const [tiltInvert, setTiltInvert] = useState(false)
   const [ptzNote, setPtzNote] = useState('ONVIF: ожидаем проверку функций камеры')
+  const [voiceToken, setVoiceToken] = useState('')
+  const [voiceBusy, setVoiceBusy] = useState(false)
+  const [voiceResult, setVoiceResult] = useState('Микрофон для STT выключен по умолчанию')
+
   useEffect(() => {
     api.cameraStatus().then(state=>{
       setPanInvert(!!state.pan_invert)
@@ -160,6 +164,18 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       setPtzNote('Реверс PTZ сохранён на Acer')
     }).catch(error=>setPtzNote('PTZ calibration: '+String(error)))
   }
+  const askCameraVoice = async (askLlm:boolean) => {
+    if(!voiceToken){setVoiceResult('Введи токен голосового доступа из локального .env Hombo3');return}
+    setVoiceBusy(true)
+    setVoiceResult('Записываем 5 секунд с микрофона камеры…')
+    try{
+      const result=await api.cameraVoiceAsk(voiceToken,5,askLlm)
+      setVoiceResult('Распознано: '+(result.transcript||'тишина')+
+        (askLlm?'\\nОтвет ИИ: '+(result.reply||'нет ответа')+
+          '\\nTTS: '+(result.queued?'поставлен в очередь':'не отправлен'):''))
+    }catch(error){setVoiceResult('Голосовой тракт недоступен: '+String(error))}
+    finally{setVoiceBusy(false)}
+  }
   const runAutofocus = () => {
     api.autofocus().then(()=>setPtzNote('ONVIF автофокус включён')).catch(error=>setPtzNote('Автофокус не поддержан: '+String(error)))
   }
@@ -190,8 +206,19 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     </div>
 
     <div className="camera-audio-row">
-      <span><Volume2 size={16}/> Микрофон камеры → динамики Acer</span>
+      <span><Volume2 size={16}/> Микрофон T23N → Acer / STT → ИИ → TTS → динамик T23N</span>
       <audio controls preload="none" src="/api/camera/audio"/>
+      <div className="zoom-row">
+        <label>Токен голосового доступа
+          <input type="password" value={voiceToken}
+            onChange={e=>setVoiceToken(e.target.value)} autoComplete="off"
+            placeholder="CAMERA_VOICE_ACCESS_TOKEN" />
+        </label>
+        <button disabled={voiceBusy} onClick={()=>void askCameraVoice(false)}>Распознать 5 с</button>
+        <button disabled={voiceBusy} onClick={()=>void askCameraVoice(true)}>Спросить ИИ голосом</button>
+      </div>
+      <small className="vision-note" style={{whiteSpace:'pre-line'}}>{voiceResult}</small>
+      <small className="vision-note">По нажатию, не постоянно. Для вывода ответа через камеру настрой SPEECH_OUTPUT=camera_ssh и проверь динамик. Звук с камеры не хранится в браузере.</small>
     </div>
 
     <div className="camera-controls">
