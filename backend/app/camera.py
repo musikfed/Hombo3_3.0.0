@@ -10,6 +10,8 @@ import asyncio
 import base64
 import logging
 import os
+import json
+from pathlib import Path
 import shutil
 import time
 from urllib.request import Request, urlopen
@@ -86,6 +88,11 @@ class CameraHub:
         self._imaging_service: Any | None = None
         self._head_pan_deg = 0.0
         self._head_tilt_deg = 0.0
+        self._pan_invert = bool(settings.camera_pan_invert)
+        self._tilt_invert = bool(settings.camera_tilt_invert)
+        self._ptz_calibration_file = Path(settings.root_dir) / "data" / "camera-ptz-calibration.json"
+        self._load_ptz_calibration()
+        self._optical_zoom_supported: bool | None = None
         self._autofocus_supported: bool | None = None
         self._autofocus_mode = "unknown"
         self._focus_error = ""
@@ -149,8 +156,9 @@ class CameraHub:
             "error": self._last_error,
             "head_pan_deg": round(self._head_pan_deg, 1),
             "head_tilt_deg": round(self._head_tilt_deg, 1),
-            "pan_invert": settings.camera_pan_invert,
-            "tilt_invert": settings.camera_tilt_invert,
+            "pan_invert": self._pan_invert,
+            "tilt_invert": self._tilt_invert,
+            "optical_zoom_supported": self._optical_zoom_supported,
             "autofocus_requested": settings.camera_autofocus,
             "autofocus_supported": self._autofocus_supported,
             "autofocus_mode": self._autofocus_mode,
@@ -628,7 +636,33 @@ class CameraHub:
     async def autofocus(self) -> dict[str, object]:
         return await asyncio.to_thread(self._set_autofocus_sync)
 
-    def _ptz_move_sync(self, pan: float, tilt: float, timeout_s: float) -> None:
+    def _load_ptz_calibration(self) -> None:
+        try:
+            data = json.loads(self._ptz_calibration_file.read_text(encoding="utf-8"))
+            for key in ("pan_invert", "tilt_invert"):
+                if type(data.get(key)) is bool:
+                    setattr(self, "_" + key, data[key])
+        except (OSError, ValueError, TypeError):
+            return
+
+    def set_ptz_calibration(self, pan_invert: bool, tilt_invert: bool) -> dict[str, bool]:
+        """Persist camera wiring inversion without touching motor/kernel drivers."""
+        self._pan_invert = bool(pan_invert)
+        self._tilt_invert = bool(tilt_invert)
+        path = self._ptz_calibration_file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".new")
+        try:
+            tmp.write_text(json.dumps({
+                "pan_invert": self._pan_invert,
+                "tilt_invert": self._tilt_invert,
+            }), encoding="utf-8")
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
+        return {"pan_invert": self._pan_invert, "tilt_invert": self._tilt_invert}
+
+    def _ptz_move_sync(self, pan: float, tilt: float, zoom: float, timeout_s: float) -> None:
         if not settings.camera_onvif_host:
             raise RuntimeError("CAMERA_ONVIF_HOST is not configured")
         if self._ptz_service is None or not self._ptz_profile_token:
@@ -639,25 +673,43 @@ class CameraHub:
 
         request = ptz.create_type("ContinuousMove")
         request.ProfileToken = self._ptz_profile_token
-        request.Velocity = {"PanTilt": {"x": pan, "y": tilt}}
-        ptz.ContinuousMove(request)
-        time.sleep(timeout_s)
-
-        stop = ptz.create_type("Stop")
-        stop.ProfileToken = self._ptz_profile_token
-        stop.PanTilt = True
-        stop.Zoom = False
-        ptz.Stop(stop)
+        velocity = {}
+        if pan or tilt:
+            velocity["PanTilt"] = {"x": pan, "y": tilt}
+        if zoom:
+            velocity["Zoom"] = {"x": zoom}
+        if not velocity:
+            return
+        request.Velocity = velocity
+        try:
+            ptz.ContinuousMove(request)
+            if zoom:
+                self._optical_zoom_supported = True
+            time.sleep(min(0.40, max(0.08, timeout_s)))
+        except Exception:
+            if zoom:
+                self._optical_zoom_supported = False
+            raise
+        finally:
+            # Always send STOP after a short pulse; no runaway motors after error.
+            stop = ptz.create_type("Stop")
+            stop.ProfileToken = self._ptz_profile_token
+            stop.PanTilt = bool(pan or tilt)
+            stop.Zoom = bool(zoom)
+            try:
+                ptz.Stop(stop)
+            except Exception:
+                logger.exception("ONVIF PTZ stop command failed")
 
     async def ptz_move(self, pan: float, tilt: float, zoom: float = 0.0) -> None:
-        del zoom
         # pan/tilt here are semantic robot coordinates. Vendor inversion happens
         # only for the ONVIF command, while VectorProbe keeps semantic angles.
         pan = max(-1.0, min(1.0, pan))
         tilt = max(-1.0, min(1.0, tilt))
-        device_pan = -pan if settings.camera_pan_invert else pan
-        device_tilt = -tilt if settings.camera_tilt_invert else tilt
-        await asyncio.to_thread(self._ptz_move_sync, device_pan, device_tilt, 0.30)
+        zoom = max(-1.0, min(1.0, zoom))
+        device_pan = -pan if self._pan_invert else pan
+        device_tilt = -tilt if self._tilt_invert else tilt
+        await asyncio.to_thread(self._ptz_move_sync, device_pan, device_tilt, zoom, 0.25)
         half_pan = max(1.0, float(settings.head_pan_range_deg) / 2.0)
         self._head_pan_deg = max(-half_pan, min(half_pan, self._head_pan_deg + pan * float(settings.head_ptz_step_deg)))
         self._head_tilt_deg = max(-90.0, min(90.0, self._head_tilt_deg + tilt * float(settings.head_ptz_step_deg)))
