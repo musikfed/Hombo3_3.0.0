@@ -4,6 +4,9 @@ import { api, type VisionStatus } from '../api'
 import { Panel, StatusPill, Toggle } from './Ui'
 
 const clampZoom = (value: number) => Math.max(1, Math.min(2.5, value))
+const readOrientation = (key: string) => {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
+}
 const readZoom = () => {
   try { return clampZoom(Number(localStorage.getItem('hombo3.camera.digital_zoom')) || 1) } catch { return 1 }
 }
@@ -14,6 +17,8 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   onVisionToggle: (enabled:boolean)=>void
 }) {
   const [digitalZoom, setDigitalZoom] = useState(readZoom)
+  const [mirror, setMirror] = useState(()=>readOrientation('hombo3.camera.mirror'))
+  const [flip, setFlip] = useState(()=>readOrientation('hombo3.camera.flip'))
   const [panInvert, setPanInvert] = useState(false)
   const [tiltInvert, setTiltInvert] = useState(false)
   const [ptzNote, setPtzNote] = useState('ONVIF: ожидаем проверку функций камеры')
@@ -50,6 +55,8 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     }
   }, [])
   useEffect(()=>{ try { localStorage.setItem('hombo3.camera.digital_zoom', String(digitalZoom)) } catch {} },[digitalZoom])
+  useEffect(()=>{ try { localStorage.setItem('hombo3.camera.mirror',mirror?'1':'0') } catch {} },[mirror])
+  useEffect(()=>{ try { localStorage.setItem('hombo3.camera.flip',flip?'1':'0') } catch {} },[flip])
 
   // The old multipart-MJPEG <img> path can be buffered by browsers for seconds.
   // WS sends raw JPEGs with latest-frame semantics: if rendering/network is slow,
@@ -170,7 +177,7 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       <img
         ref={imageRef}
         alt="Поток камеры WIFICAM T23N"
-        style={{ transform: `scale(${digitalZoom})` }}
+        style={{ transform: `scale(${digitalZoom}) scaleX(${mirror?-1:1}) scaleY(${flip?-1:1})` }}
       />
       <div className="camera-hud top-left"><span>лёгкий видеопрофиль</span><span>зум ×{digitalZoom.toFixed(2)}</span></div>
       <div className="camera-hud top-right"><Volume2 size={15}/><span>звук отдельным потоком</span></div>
@@ -203,6 +210,11 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
           <button onClick={() => zoomBy(.25)} disabled={digitalZoom >= 2.5}><ZoomIn size={18}/>Зум +</button>
         </div>
         <small className="vision-note">Цифровой зум на Acer не меняет объектив и не нагружает камеру. Оптический зум — только если ONVIF его поддерживает.</small>
+        <div className="zoom-row">
+          <label><input type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/> Зеркало ⇆</label>
+          <label><input type="checkbox" checked={flip} onChange={e=>setFlip(e.target.checked)}/> Переворот ⇅</label>
+        </div>
+        <small className="vision-note">Оба флажка вместе = поворот 180°. Только экран оператора: RTSP/YOLO и моторы не меняются.</small>
         <div className="zoom-row">
           <button onClick={()=>onPtz(0,0,-.4)}><ZoomOut size={18}/>Оптика −</button>
           <button onClick={()=>onPtz(0,0,.4)}><ZoomIn size={18}/>Оптика +</button>
