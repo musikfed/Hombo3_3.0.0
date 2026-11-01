@@ -255,6 +255,14 @@ export const api = {
     method: 'POST', body: JSON.stringify({pan_invert,tilt_invert}),
   }),
   autofocus: () => request('/api/camera/autofocus', {method:'POST'}),
+  cameraVoiceAsk: (token:string, seconds=5, askLlm=true) =>
+    request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string}>(
+      '/api/camera/voice-ask', {
+        method:'POST',body:JSON.stringify({
+          access_token:token,seconds,ask_llm:askLlm,
+        }),
+      }),
+
   visionStatus: () => request<VisionStatus>('/api/vision/status'),
   visionConfigure: (enabled: boolean, classes: string[]) => request<VisionStatus>('/api/vision/config', {
     method: 'POST', body: JSON.stringify({ enabled, classes }),
