@@ -89,6 +89,10 @@ class CameraVoiceRequest(BaseModel):
     ask_llm: bool = True
 
 
+class CameraFocusStepRequest(BaseModel):
+    direction: str = Field(pattern="^(near|far)$")
+
+
 class MapPoseRequest(BaseModel):
     x_m: float = 0.0
     y_m: float = 0.0
@@ -688,6 +692,14 @@ async def camera_ptz_calibration(request: PtzCalibrationRequest) -> dict[str, An
         return {"ok": True, "calibration": values, "camera": camera_hub.status()}
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"PTZ calibration could not persist: {exc}") from exc
+
+
+@app.post("/api/camera/focus/step")
+async def camera_focus_step(request: CameraFocusStepRequest) -> dict[str, object]:
+    try:
+        return await camera_hub.focus_step(request.direction)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Manual camera focus unavailable: {exc}") from exc
 
 
 @app.post("/api/camera/autofocus")
