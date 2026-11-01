@@ -27,7 +27,21 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     }).catch(error=>setPtzNote(String(error)))
   }, [])
   const imageRef = useRef<HTMLImageElement | null>(null)
-  const [videoTransport, setVideoTransport] = useState<'ws'|'mjpeg'>('ws')
+  const [videoTransport, setVideoTransport] = useState<'ws'|'mjpeg'|'paused'>('paused')
+  const [browserVisible, setBrowserVisible] = useState(() => !document.hidden)
+  useEffect(() => {
+    const onVisibility = () => setBrowserVisible(!document.hidden)
+    const onPageHide = () => setBrowserVisible(false)
+    const onPageShow = () => setBrowserVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
+    }
+  }, [])
   useEffect(()=>{ try { localStorage.setItem('hombo3.camera.digital_zoom', String(digitalZoom)) } catch {} },[digitalZoom])
 
   // The old multipart-MJPEG <img> path can be buffered by browsers for seconds.
@@ -36,6 +50,12 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   useEffect(() => {
     const image = imageRef.current
     if (!image) return
+    if (!browserVisible || document.hidden) {
+      image.onload = null
+      image.onerror = null
+      image.removeAttribute('src')
+      return
+    }
     const demo = new URLSearchParams(location.search).get('demo') === '1'
     if (demo) return
 
@@ -68,7 +88,7 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     }
 
     const useMjpegFallback = () => {
-      if (gotFrame || fallbackActive) return
+      if (gotFrame || fallbackActive || disposed || document.hidden) return
       fallbackActive = true
       pendingFrame = null
       image.onload = null
@@ -80,9 +100,27 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       try { socket.close() } catch {}
     }
     const fallbackTimer = window.setTimeout(useMjpegFallback, 2500)
+    // Close immediately on browser hide/unload even if React is suspended
+    // before its state update can trigger normal effect cleanup.
+    const onHidden = () => { if (document.hidden) cleanupConnection() }
+    const onPageHide = () => cleanupConnection()
+    const cleanupConnection = () => {
+      if (disposed) return
+      disposed = true
+      pendingFrame = null
+      window.clearTimeout(fallbackTimer)
+      image.onload = null
+      image.onerror = null
+      image.removeAttribute('src') // abort MJPEG fallback too
+      try { socket.close() } catch {}
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      currentUrl = ''
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
 
     socket.onmessage = event => {
-      if (fallbackActive) return
+      if (disposed || fallbackActive || document.hidden) return
       gotFrame = true
       window.clearTimeout(fallbackTimer)
       setVideoTransport('ws')
@@ -95,15 +133,11 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     socket.onclose = () => { if (!gotFrame) useMjpegFallback() }
 
     return () => {
-      disposed = true
-      pendingFrame = null
-      window.clearTimeout(fallbackTimer)
-      try { socket.close() } catch {}
-      image.onload = null
-      image.onerror = null
-      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
+      cleanupConnection()
     }
-  }, [])
+  }, [browserVisible])
 
   const zoomBy = (delta: number) => setDigitalZoom(previous => clampZoom(Number((previous + delta).toFixed(2))))
   const saveReverse = (pan:boolean,tilt:boolean) => {
@@ -123,7 +157,7 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     title="WIFICAM T23N / ONVIF"
     icon={<Camera size={18}/>}
     className="camera-panel"
-    actions={<><StatusPill label={`ВИДЕО · ${videoTransport === 'ws' ? 'WS LATEST' : 'MJPEG FALLBACK'}`} tone="good"/><StatusPill label="МИКРОФОН · НАЖМИ ▶" tone="info"/></>}
+    actions={<><StatusPill label={`ВИДЕО · ${videoTransport === 'paused' ? 'PAUSED' : videoTransport === 'ws' ? 'WS LATEST' : 'MJPEG FALLBACK'}`} tone="good"/><StatusPill label="МИКРОФОН · НАЖМИ ▶" tone="info"/></>}
   >
     <div className="camera-frame">
       <img
