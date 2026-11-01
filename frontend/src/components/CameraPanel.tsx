@@ -177,7 +177,11 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     finally{setVoiceBusy(false)}
   }
   const runAutofocus = () => {
-    api.autofocus().then(()=>setPtzNote('ONVIF автофокус включён')).catch(error=>setPtzNote('Автофокус не поддержан: '+String(error)))
+    api.autofocus().then(()=>setPtzNote('ONVIF автофокус включён (проверь резкость в кадре)')).catch(error=>setPtzNote('Автофокус не поддержан: '+String(error)))
+  }
+  const runFocusStep = (direction:'near'|'far')=>{
+    api.focusStep(direction).then(()=>setPtzNote('Фокус '+direction+': импульс 0.2 с, проверь резкость'))
+      .catch(error=>setPtzNote('Ручной фокус не поддержан: '+String(error)))
   }
   const visionDiagnostic = vision.error || (!vision.available
     ? `provider=${vision.provider_ok?'OK':'ERR'} · ultralytics=${vision.package_ok?'OK':'ERR'} · model=${vision.model_exists?'OK':'ERR'} · ${vision.model_path||''}`
@@ -246,6 +250,8 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
           <button onClick={()=>onPtz(0,0,-.4)}><ZoomOut size={18}/>Оптика −</button>
           <button onClick={()=>onPtz(0,0,.4)}><ZoomIn size={18}/>Оптика +</button>
           <button onClick={runAutofocus}>Автофокус ONVIF</button>
+          <button onClick={()=>runFocusStep('near')}>Фокус ближе</button>
+          <button onClick={()=>runFocusStep('far')}>Фокус дальше</button>
         </div>
         <div className="zoom-row">
           <label><input type="checkbox" checked={panInvert} onChange={event=>saveReverse(event.target.checked,tiltInvert)}/> Реверс лево/право</label>
