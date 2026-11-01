@@ -154,3 +154,19 @@ LLM CORE — `.100` (Ubuntu Server, Xeon, RTX 3060), GRAPHICS — `.103`
 [Архитектура RU](docs/PEGINELAB_LAB_ARCHITECTURE_RU.md) ·
 [Architecture EN](docs/PEGINELAB_LAB_ARCHITECTURE_EN.md).
 При правках учитывать также [AGENTS.md](AGENTS.md).
+
+## PegineLab camera optics and spoken dialog
+
+WIFICAM/Hombo3 operators can separately set left/right and up/down PTZ
+inversion, horizontal mirror, vertical image flip (both = 180°), and
+digital preview zoom. Hombo3 additionally has ONVIF manual focus
+near/far pulses, autofocus request and optical zoom request, all
+**hardware capability-dependent** and not proven on the Galayou G2.
+
+Opt-in voice pipeline: T23N RTSP microphone → FFmpeg on Acer Windows →
+Whisper-compatible STT service on private GPU CORE `.100` → Ollama
+LLM (no motor actions from speech) → Acer Windows SAPI TTS →
+T23N SSH/Raptor speaker. Off by default with operator token and
+only triggered manually in short audio clips. See
+[Guide RU](docs/CAMERA_PTZ_AUDIO_RU.md) /
+[Guide EN](docs/CAMERA_PTZ_AUDIO_EN.md).
