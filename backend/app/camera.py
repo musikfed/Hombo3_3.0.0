@@ -529,7 +529,19 @@ class CameraHub:
         except Exception as exc:
             self._connected = False
             self._last_error = str(exc)
-            log_event("ERROR", "camera", "Camera reader stopped", {"error": str(exc)})
+            log_event("ERROR", "camera", "Camera reader failed", {"error": str(exc)})
+            # Let a weak or misconfigured RTSP source fall back to JPEG, if an
+            # authenticated PegineLab endpoint is configured. No extra camera
+            # process is spawned and there is still only one latest-frame queue.
+            if backend == "auto" and settings.camera_snapshot_url:
+                log_event("WARNING", "camera", "Switching to PegineLab JPEG fallback", {})
+                try:
+                    await self._http_snapshot_reader_loop()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as fallback_exc:
+                    self._last_error = str(fallback_exc)
+                    log_event("ERROR", "camera", "Camera HTTP JPEG fallback failed", {"error": str(fallback_exc)})
         finally:
             self._connected = False
 
