@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     ollama_timeout_s: float = 180.0
 
     camera_rtsp_url: str = ""
+    # PegineLab WIFICAM can serve one authenticated JPEG via CGI. This
+    # low-rate fallback keeps Hombo3 vision usable when RTSP is unavailable.
+    camera_snapshot_url: str = ""
+    camera_snapshot_username: str = ""
+    camera_snapshot_password: str = ""
+    camera_snapshot_interval_s: float = 1.0
     camera_onvif_host: str = "192.168.1.62"
     camera_onvif_port: int = 8000
     camera_username: str = ""
