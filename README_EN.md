@@ -7,3 +7,16 @@ Hardware baseline: side-based dual TB6612 drive, 3× HC-SR04, VL53L0X, MAX98357A
 Normal application updates are delivered over the active Wi-Fi network with backup/rollback; USB remains recovery. VectorProbe fuses an operator-drawn reference map, range rays, dead-reckoned pose, visual landmarks, semantic inventory, dynamic objects, robot trail and route planning. LLM tools stay semantic; raw GPIO remains inside deterministic ESP32 safety code.
 
 See `README_RU.md`, `docs/HARDWARE_BASELINE_RU.md` and `docs/VECTORPROBE_RU.md`.
+
+## PegineLab lab host/deployment architecture
+
+**Hombo3 FastAPI/dashboard runs natively on Acer Swift 3 Windows 11 Pro**,
+Ryzen 5 3500U, 20 GB DDR4, Vega 8. Pin **Python 3.13** from repo
+`.python-version`; host default 3.14 is not the project target. **Thingino
+WIFICAM firmware builds separately in WSL Ubuntu 24.04** on the same Acer
+(WSL distro stored on D:). Acer is the control/orchestration hub, RTX 3060
+CORE `.100` runs large LLM inference, DEXP `.109` runs AmneziaWG/2FA
+edge, Ardor `.103` is graphics, E205 `.101` is the managed switch.
+
+[Lab architecture EN](docs/PEGINELAB_LAB_ARCHITECTURE_EN.md) ·
+[RU](docs/PEGINELAB_LAB_ARCHITECTURE_RU.md) · [Developer guardrails](AGENTS.md).
