@@ -77,6 +77,10 @@ class PtzRequest(BaseModel):
     tilt: float = Field(ge=-1.0, le=1.0)
     zoom: float = Field(default=0.0, ge=-1.0, le=1.0)
 
+class PtzCalibrationRequest(BaseModel):
+    pan_invert: bool
+    tilt_invert: bool
+
 
 class MapPoseRequest(BaseModel):
     x_m: float = 0.0
@@ -633,6 +637,15 @@ async def camera_ptz(request: PtzRequest) -> dict[str, Any]:
         return {"ok": True, "camera": camera_hub.status()}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"ONVIF PTZ failed: {exc}") from exc
+
+
+@app.post("/api/camera/ptz/calibration")
+async def camera_ptz_calibration(request: PtzCalibrationRequest) -> dict[str, Any]:
+    try:
+        values = camera_hub.set_ptz_calibration(request.pan_invert, request.tilt_invert)
+        return {"ok": True, "calibration": values, "camera": camera_hub.status()}
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"PTZ calibration could not persist: {exc}") from exc
 
 
 @app.post("/api/camera/autofocus")
