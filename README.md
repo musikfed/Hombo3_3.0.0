@@ -128,3 +128,14 @@ LLM не получает сырого GPIO. Агент работает чер�
 ![Hombo Web UI](webui%20%282%29.png)
 
 ![Hombo Web UI](webui%20%283%29.png)
+
+## PegineLab WIFICAM T23N / SD camera
+
+Hombo3 supports an explicit local T23N camera profile with authenticated
+HTTP JPEG snapshots for YOLO/VectorProbe (RTSP fallback), existing RTSP
+microphone handling and optional SSH-key speaker output. See
+[docs/WIFICAM_T23N_RU.md](docs/WIFICAM_T23N_RU.md) and
+[.env.wificam.example](.env.wificam.example). Run
+`python scripts/probe_wificam.py --ip 192.168.1.55` before enabling audio.
+This integration needs testing on the actual camera. No ports are exposed
+outside the local network by this change.
