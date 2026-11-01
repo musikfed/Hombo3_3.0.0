@@ -18,6 +18,7 @@ from .battery_estimator import battery_trend
 from .autonomy import AutonomyManager
 from .camera import camera_hub
 from .camera_speaker import send_pcm_to_camera
+from .camera_speech import transcribe_camera, require_operator_token
 from .config import settings
 from .database import init_database, list_events, log_event, log_telemetry
 from .memory import build_agent_context
@@ -80,6 +81,12 @@ class PtzRequest(BaseModel):
 class PtzCalibrationRequest(BaseModel):
     pan_invert: bool
     tilt_invert: bool
+
+
+class CameraVoiceRequest(BaseModel):
+    access_token: str = Field(min_length=1, max_length=512)
+    seconds: int = Field(default=5, ge=2, le=10)
+    ask_llm: bool = True
 
 
 class MapPoseRequest(BaseModel):
@@ -410,7 +417,8 @@ async def stop(request: StopRequest) -> dict[str, Any]:
 async def speak(request: SpeechRequest) -> dict[str, Any]:
     try:
         pcm, sample_rate = await render_pcm(request.text, request.rate)
-        await robot.send_pcm(pcm, sample_rate)
+        speaker_target = send_pcm_to_camera if settings.speech_output == "camera_ssh" else robot.send_pcm
+        await speaker_target(pcm, sample_rate)
         announcer.last_phrase = request.text
         log_event("INFO", "speech", "Manual phrase played", {"text": request.text, "bytes": len(pcm)})
         return {"ok": True, "bytes": len(pcm), "sample_rate": sample_rate}
@@ -613,6 +621,40 @@ async def camera_websocket(websocket: WebSocket) -> None:
         log_event("WARNING", "camera", "Camera WebSocket closed", {"error": str(exc)})
         with suppress(Exception):
             await websocket.close(code=1011)
+
+
+@app.post("/api/camera/voice-ask")
+async def camera_voice_ask(request: CameraVoiceRequest) -> dict[str, Any]:
+    """Explicit operator-triggered camera microphone -> STT -> LLM -> TTS.
+
+    Input is authorized per request and opt-in by default; no continuous
+    recording, robot movement, or automatic cloud audio upload.
+    """
+    try:
+        require_operator_token(request.access_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    try:
+        transcript = await transcribe_camera(request.seconds)
+        if not transcript:
+            return {"ok": True, "transcript": "", "reply": "", "queued": False}
+        if not request.ask_llm:
+            return {"ok": True, "transcript": transcript, "reply": "", "queued": False}
+        decision = await ollama.decide(
+            transcript, telemetry_cache, False,
+            build_agent_context(transcript, telemetry_cache, vision.status()),
+        )
+        # Always disallow actions from microphone input. Only speech output.
+        reply = (decision.say or "").strip()
+        queued = await announcer.say(reply, "observation", 0.0) if reply else False
+        return {"ok": True, "transcript": transcript, "reply": reply,
+                "queued": queued, "speech_output": settings.speech_output}
+    except Exception as exc:
+        # Do not log raw microphone samples, transcript or API keys.
+        raise HTTPException(status_code=502, detail=f"Camera voice pipeline: {type(exc).__name__}: {exc}") from exc
 
 
 @app.get("/api/camera/audio")
