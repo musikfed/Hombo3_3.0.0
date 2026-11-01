@@ -139,3 +139,18 @@ microphone handling and optional SSH-key speaker output. See
 `python scripts/probe_wificam.py --ip 192.168.1.55` before enabling audio.
 This integration needs testing on the actual camera. No ports are exposed
 outside the local network by this change.
+
+## Лаборатория PegineLab — где запускается Hombo3
+
+**Hombo3 работает на Windows 11 Pro** ноутбука Acer Swift 3 (Ryzen 5 3500U,
+20 ГБ DDR4, Vega 8). Нужен **Python 3.13** (он указан в `.python-version`),
+несмотря на то что системный `py` выбирает Python 3.14. Acer — центральный
+посредник и пульт управления, а **прошивка камеры собирается отдельно в WSL
+Ubuntu 24.04 на этом же Acer (WSL на D:)**.
+
+LLM CORE — `.100` (Ubuntu Server, Xeon, RTX 3060), GRAPHICS — `.103`
+(Ardor, RX 7600 XT), внешний VPN edge/CI/CD — `.109` (DEXP, AmneziaWG),
+коммутация — Tenda TX12 / E205 `.101`. Полная инвентаризация:
+[Архитектура RU](docs/PEGINELAB_LAB_ARCHITECTURE_RU.md) ·
+[Architecture EN](docs/PEGINELAB_LAB_ARCHITECTURE_EN.md).
+При правках учитывать также [AGENTS.md](AGENTS.md).
