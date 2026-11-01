@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     camera_speaker_ssh_host: str = ""
     camera_speaker_ssh_user: str = "root"
     camera_speaker_ssh_key: str = ""
+    # Explicitly opt in. A command records a bounded microphone clip;
+    # nothing is continuously recorded or uploaded.
+    camera_voice_enabled: bool = False
+    camera_voice_access_token: str = ""  # operator token for API microphone triggers
+    camera_stt_url: str = ""             # e.g. trusted CORE Whisper /v1/audio/transcriptions
+    camera_stt_api_key: str = ""
+    camera_stt_model: str = "whisper-1"
+    camera_stt_language: str = "ru"
+    camera_voice_clip_seconds: int = 5
     camera_onvif_host: str = "192.168.1.62"
     camera_onvif_port: int = 8000
     camera_username: str = ""
