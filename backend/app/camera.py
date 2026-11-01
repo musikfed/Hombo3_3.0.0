@@ -473,7 +473,7 @@ class CameraHub:
             jpeg = response.read(4_000_001)
         if len(jpeg) > 4_000_000:
             raise RuntimeError("PegineLab JPEG exceeds 4 MB limit")
-        if not jpeg.startswith(b"\\xff\\xd8") or not jpeg.endswith(b"\\xff\\xd9"):
+        if not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
             raise RuntimeError("PegineLab snapshot did not return JPEG (check CGI and Basic Auth)")
         if content_type and "image/jpeg" not in content_type:
             raise RuntimeError("PegineLab snapshot returned unexpected MIME type: " + content_type)
