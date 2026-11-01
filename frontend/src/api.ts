@@ -255,6 +255,9 @@ export const api = {
     method: 'POST', body: JSON.stringify({pan_invert,tilt_invert}),
   }),
   autofocus: () => request('/api/camera/autofocus', {method:'POST'}),
+  focusStep: (direction:'near'|'far') => request('/api/camera/focus/step',{
+    method:'POST',body:JSON.stringify({direction}),
+  }),
   cameraVoiceAsk: (token:string, seconds=5, askLlm=true) =>
     request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string}>(
       '/api/camera/voice-ask', {
