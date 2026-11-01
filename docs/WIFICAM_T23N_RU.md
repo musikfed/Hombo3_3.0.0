@@ -150,3 +150,43 @@ CAMERA_SPEAKER_SSH_KEY=/home/obzor/.ssh/hombo_t23n_ed25519
 `ONVIF/PTZ`, `RTSP video`, `RTSP audio`, `Raptor speaker`, `SSH` после
 reboot. Зафиксированный `0.1_test` не менять и не путать с обновлёнными
 исходниками.
+
+## PTZ, реверс, автофокус, оптический зум
+
+В Hombo3 CameraPanel теперь есть:
+- Стрелки с коротким импульсом ONVIF ContinuousMove и обязательным Stop;
+- Переключатели реверса pan/tilt, сохраняемые на Acer в `data/camera-ptz-calibration.json`;
+- Кнопки ONVIF Optical Zoom ± (в отличие от цифрового CSS-масштабирования);
+- Кнопка Imaging AUTO focus; если в объективе нет автофокуса, сервер
+  честно возвращает ошибку.
+
+Реверс на уровне Hombo3 выполняется в CameraHub, а не в прошивке моторов.
+Для управления из PegineLab на камере есть независимая калибровка в
+`/opt/wificam/ptz-controls.conf`: не устанавливайте обратные настройки
+в обеих системах, если используете разные пути управления моторчиками.
+При отсутствии аппаратного Zoom/Imaging сервисы ONVIF могут вернуть
+`unsupported`. Увеличение в браузере Hombo3 останется цифровым.
+
+## Быстрый видеотракт
+
+При исправном RTSP предпочтителен `CAMERA_VIDEO_BACKEND=auto`.
+`CAMERA_RTSP_URL=rtsp://CAMERA_IP:554/ch1` — пример более лёгкого
+substream; сначала проверьте существование `ch1` через ffprobe
+(если его нет — используйте `ch0`). Настройка `CAMERA_MJPEG_FPS=12`
+ограничивает нагрузку JPEG-конвертации на Acer. В WebSocket пользователь
+получает **последний кадр без очереди старых кадров**, чтобы поворот
+не отображался спустя несколько секунд. При неудаче RTSP режим `auto`
+может перейти на авторизованный snapshot CGI. Последний путь медленнее.
+
+Для самой WIFICAM Raptor RHD MJPEG доступен через защищённый URL
+`http://CAMERA_IP:8090/cgi-bin/live.mjpg`. В pinned Raptor глобальный
+JPEG FPS по умолчанию бывает всего 1; при тесте можно обратимо выставить
+8–15 через `scripts/camera_preview_fps.sh` в репозитории WIFICAM.
+Не надо выгружать `motor` или ISP модуль ядра и отключать `rvd`,
+`rad`, `rsd`, `rhd`, `motors-daemon`, Wi-Fi или SSH.
+Физические тесты FPS, задержки, мощности CPU и работы моторчиков
+остаются обязательными до нового SD-релиза.
+
+Проверки исходников: GitHub Actions с unittest-моками ONVIF, сборкой
+React/TypeScript, отдельным shell-тестом Thingino motors в WIFICAM.
+Это не заменяет аппаратную проверку PTZ, RTSP и фокуса.
