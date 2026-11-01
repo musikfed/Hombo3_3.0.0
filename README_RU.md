@@ -125,3 +125,16 @@ TTS на динамик камеры через SSH-ключ (без новог�
 Инструкция: [docs/WIFICAM_T23N_RU.md](docs/WIFICAM_T23N_RU.md).
 Настройки: [.env.wificam.example](.env.wificam.example).
 Аппаратная проверка API, изображения и аудио ещё требуется.
+
+## Лабораторная инфраструктура и среды запуска
+
+Hombo3 backend и интерфейс работают **в Windows 11 Pro на Acer Swift 3**
+(Ryzen 5 3500U, 20 ГБ DDR4, Vega 8). Использовать **Python 3.13**
+(`.python-version`), не системный Python 3.14 по умолчанию.
+Камера Thingino/WIFICAM собирается отдельно в **WSL Ubuntu 24.04**
+на том же Acer, дистрибутив на Windows диске D:. LLM вычисляется
+на CORE `.100` с RTX 3060, VPN/2FA ingress — DEXP `.109`,
+Ardor `.103` — графический узел, E205 `.101` — коммутатор.
+
+[Полная схема лаборатории и технические характеристики](docs/PEGINELAB_LAB_ARCHITECTURE_RU.md) ·
+[English](docs/PEGINELAB_LAB_ARCHITECTURE_EN.md) · [Правила разработки](AGENTS.md).
