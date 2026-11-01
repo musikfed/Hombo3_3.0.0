@@ -16,10 +16,13 @@ jobs:
           python -m py_compile backend/app/config.py
           python -m py_compile backend/app/camera.py
           python -m py_compile backend/app/camera_speaker.py
+          python -m py_compile backend/app/camera_speech.py
           python -m py_compile backend/app/main.py
           python -m py_compile scripts/probe_wificam.py
       - name: Mock ONVIF motor and zoom tests
         run: python -m unittest discover -s tests -p 'test_camera_ptz.py'
+      - name: Mock STT WAV and operator authentication tests
+        run: python -m unittest discover -s tests -p 'test_camera_speech.py'
   frontend-build:
     runs-on: ubuntu-latest
     steps:
