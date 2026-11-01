@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     camera_snapshot_username: str = ""
     camera_snapshot_password: str = ""
     camera_snapshot_interval_s: float = 1.0
+    # Opt-in: TTS PCM to the camera's Raptor "play -s -r" via authenticated
+    # SSH, not through an unauthenticated network audio endpoint.
+    speech_output: str = "esp32"  # esp32 | camera_ssh
+    camera_speaker_ssh_host: str = ""
+    camera_speaker_ssh_user: str = "root"
+    camera_speaker_ssh_key: str = ""
     camera_onvif_host: str = "192.168.1.62"
     camera_onvif_port: int = 8000
     camera_username: str = ""
