@@ -45,10 +45,36 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     let currentUrl = ''
     let gotFrame = false
     let fallbackActive = false
+    let pendingFrame: Blob | null = null
+    let drawing = false
+    let disposed = false
+
+    const drawLatest = () => {
+      if (drawing || !pendingFrame || disposed || fallbackActive) return
+      const blob = pendingFrame
+      pendingFrame = null
+      drawing = true
+      const nextUrl = URL.createObjectURL(blob)
+      const oldUrl = currentUrl
+      currentUrl = nextUrl
+      const complete = () => {
+        if (oldUrl) URL.revokeObjectURL(oldUrl)
+        drawing = false
+        drawLatest()
+      }
+      image.onload = complete
+      image.onerror = complete
+      image.src = nextUrl
+    }
 
     const useMjpegFallback = () => {
       if (gotFrame || fallbackActive) return
       fallbackActive = true
+      pendingFrame = null
+      image.onload = null
+      image.onerror = null
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      currentUrl = ''
       setVideoTransport('mjpeg')
       image.src = `/api/camera/stream?fallback=${Date.now()}`
       try { socket.close() } catch {}
@@ -60,19 +86,21 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       gotFrame = true
       window.clearTimeout(fallbackTimer)
       setVideoTransport('ws')
-      const blob = event.data instanceof Blob ? event.data : new Blob([event.data], {type:'image/jpeg'})
-      const nextUrl = URL.createObjectURL(blob)
-      const previousUrl = currentUrl
-      currentUrl = nextUrl
-      image.onload = () => { if (previousUrl) URL.revokeObjectURL(previousUrl) }
-      image.src = nextUrl
+      // Keep only the newest frame while the browser is still decoding.
+      // Prevent a queue of stale frames and excessive object URLs at high FPS.
+      pendingFrame = event.data instanceof Blob ? event.data : new Blob([event.data], {type:'image/jpeg'})
+      drawLatest()
     }
     socket.onerror = useMjpegFallback
     socket.onclose = () => { if (!gotFrame) useMjpegFallback() }
 
     return () => {
+      disposed = true
+      pendingFrame = null
       window.clearTimeout(fallbackTimer)
       try { socket.close() } catch {}
+      image.onload = null
+      image.onerror = null
       if (currentUrl) URL.revokeObjectURL(currentUrl)
     }
   }, [])
