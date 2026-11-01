@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Crosshair, RotateCcw, Volume2, ZoomIn, ZoomOut } from 'lucide-react'
-import type { VisionStatus } from '../api'
+import { api, type VisionStatus } from '../api'
 import { Panel, StatusPill, Toggle } from './Ui'
 
 const clampZoom = (value: number) => Math.max(1, Math.min(2.5, value))
@@ -14,6 +14,18 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   onVisionToggle: (enabled:boolean)=>void
 }) {
   const [digitalZoom, setDigitalZoom] = useState(readZoom)
+  const [panInvert, setPanInvert] = useState(false)
+  const [tiltInvert, setTiltInvert] = useState(false)
+  const [ptzNote, setPtzNote] = useState('ONVIF: ожидаем проверку функций камеры')
+  useEffect(() => {
+    api.cameraStatus().then(state=>{
+      setPanInvert(!!state.pan_invert)
+      setTiltInvert(!!state.tilt_invert)
+      setPtzNote(state.optical_zoom_supported === true
+        ? 'Оптический зум подтверждён ONVIF'
+        : 'Оптический зум: только если поддержан камерой; иначе цифровой')
+    }).catch(error=>setPtzNote(String(error)))
+  }, [])
   const imageRef = useRef<HTMLImageElement | null>(null)
   const [videoTransport, setVideoTransport] = useState<'ws'|'mjpeg'>('ws')
   useEffect(()=>{ try { localStorage.setItem('hombo3.camera.digital_zoom', String(digitalZoom)) } catch {} },[digitalZoom])
@@ -66,12 +78,21 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   }, [])
 
   const zoomBy = (delta: number) => setDigitalZoom(previous => clampZoom(Number((previous + delta).toFixed(2))))
+  const saveReverse = (pan:boolean,tilt:boolean) => {
+    api.ptzCalibration(pan,tilt).then(()=>{
+      setPanInvert(pan);setTiltInvert(tilt)
+      setPtzNote('Реверс PTZ сохранён на Acer')
+    }).catch(error=>setPtzNote('PTZ calibration: '+String(error)))
+  }
+  const runAutofocus = () => {
+    api.autofocus().then(()=>setPtzNote('ONVIF автофокус включён')).catch(error=>setPtzNote('Автофокус не поддержан: '+String(error)))
+  }
   const visionDiagnostic = vision.error || (!vision.available
     ? `provider=${vision.provider_ok?'OK':'ERR'} · ultralytics=${vision.package_ok?'OK':'ERR'} · model=${vision.model_exists?'OK':'ERR'} · ${vision.model_path||''}`
     : `${vision.provider}: ${vision.model || 'модель не выбрана'}`)
 
   return <Panel
-    title="REGGO · ONVIF"
+    title="WIFICAM T23N / ONVIF"
     icon={<Camera size={18}/>}
     className="camera-panel"
     actions={<><StatusPill label={`ВИДЕО · ${videoTransport === 'ws' ? 'WS LATEST' : 'MJPEG FALLBACK'}`} tone="good"/><StatusPill label="МИКРОФОН · НАЖМИ ▶" tone="info"/></>}
@@ -79,7 +100,7 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
     <div className="camera-frame">
       <img
         ref={imageRef}
-        alt="Поток камеры REGGO"
+        alt="Поток камеры WIFICAM T23N"
         style={{ transform: `scale(${digitalZoom})` }}
       />
       <div className="camera-hud top-left"><span>лёгкий видеопрофиль</span><span>зум ×{digitalZoom.toFixed(2)}</span></div>
@@ -112,7 +133,17 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
           <button onClick={() => setDigitalZoom(1)}><RotateCcw size={18}/>×1</button>
           <button onClick={() => zoomBy(.25)} disabled={digitalZoom >= 2.5}><ZoomIn size={18}/>Зум +</button>
         </div>
-        <small className="vision-note">Зум цифровой; автофокус отправляет ONVIF Imaging AUTO, если REGGO его поддерживает.</small>
+        <small className="vision-note">Цифровой зум на Acer не меняет объектив и не нагружает камеру. Оптический зум — только если ONVIF его поддерживает.</small>
+        <div className="zoom-row">
+          <button onClick={()=>onPtz(0,0,-.4)}><ZoomOut size={18}/>Оптика −</button>
+          <button onClick={()=>onPtz(0,0,.4)}><ZoomIn size={18}/>Оптика +</button>
+          <button onClick={runAutofocus}>Автофокус ONVIF</button>
+        </div>
+        <div className="zoom-row">
+          <label><input type="checkbox" checked={panInvert} onChange={event=>saveReverse(event.target.checked,tiltInvert)}/> Реверс лево/право</label>
+          <label><input type="checkbox" checked={tiltInvert} onChange={event=>saveReverse(panInvert,event.target.checked)}/> Реверс верх/низ</label>
+        </div>
+        <small className="vision-note">{ptzNote}</small>
         <Toggle checked={vision.enabled} onChange={onVisionToggle} label="Распознавание объектов"/>
         <small className={vision.error ? 'vision-error' : 'vision-note'}>{visionDiagnostic}</small>
         <div className="object-chips">
