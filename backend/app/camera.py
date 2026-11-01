@@ -7,10 +7,12 @@ settings, so UI, MCP and VectorProbe all agree on the same coordinate system.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import os
 import shutil
 import time
+from urllib.request import Request, urlopen
 from contextlib import suppress
 from typing import AsyncIterator, Any
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -93,7 +95,7 @@ class CameraHub:
 
     @property
     def configured(self) -> bool:
-        return bool(settings.camera_onvif_host or settings.camera_rtsp_url)
+        return bool(settings.camera_onvif_host or settings.camera_rtsp_url or settings.camera_snapshot_url)
 
     async def start(self) -> None:
         if self._task is None and self.configured:
@@ -138,6 +140,7 @@ class CameraHub:
             "jpeg_quality": settings.camera_jpeg_quality,
             "video_backend": self._active_video_backend or settings.camera_video_backend,
             "rtsp_transport": settings.camera_rtsp_transport,
+            "snapshot_fallback_configured": bool(settings.camera_snapshot_url),
             "frame_age_ms": age_ms,
             "frame_id": self._frame_id,
             "reconnects": self._reconnects,
@@ -173,8 +176,8 @@ class CameraHub:
             raise RuntimeError("ONVIF GetStreamUri returned an empty URI")
         return _uri_with_credentials(uri)
 
-    def _discover_stream_uris_sync(self) -> tuple[str, str]:
-        if settings.camera_rtsp_url:
+    def _discover_stream_uris_sync(self, force_onvif: bool = False) -> tuple[str, str]:
+        if settings.camera_rtsp_url and not force_onvif:
             manual = _uri_with_credentials(settings.camera_rtsp_url.strip())
             self._video_profile_token = "manual"
             self._audio_profile_token = "manual"
@@ -456,9 +459,52 @@ class CameraHub:
             if not self._stop_event.is_set():
                 await asyncio.sleep(0.25)
 
+    @staticmethod
+    def _read_snapshot_sync() -> bytes:
+        uri = settings.camera_snapshot_url.strip()
+        if not uri.startswith(("http://", "https://")):
+            raise RuntimeError("CAMERA_SNAPSHOT_URL must be an HTTP(S) URL")
+        request = Request(uri, headers={"Accept": "image/jpeg", "Cache-Control": "no-cache"})
+        if settings.camera_snapshot_username:
+            auth = (settings.camera_snapshot_username + ":" + settings.camera_snapshot_password).encode("utf-8")
+            request.add_header("Authorization", "Basic " + base64.b64encode(auth).decode("ascii"))
+        with urlopen(request, timeout=max(1.0, settings.camera_stall_timeout_s)) as response:
+            content_type = response.headers.get("Content-Type", "").lower()
+            jpeg = response.read(4_000_001)
+        if len(jpeg) > 4_000_000:
+            raise RuntimeError("PegineLab JPEG exceeds 4 MB limit")
+        if not jpeg.startswith(b"\\xff\\xd8") or not jpeg.endswith(b"\\xff\\xd9"):
+            raise RuntimeError("PegineLab snapshot did not return JPEG (check CGI and Basic Auth)")
+        if content_type and "image/jpeg" not in content_type:
+            raise RuntimeError("PegineLab snapshot returned unexpected MIME type: " + content_type)
+        return jpeg
+
+    async def _http_snapshot_reader_loop(self) -> None:
+        """Low-rate visual fallback with one JPEG per request, no RTSP decoding."""
+        if not settings.camera_snapshot_url:
+            raise RuntimeError("CAMERA_SNAPSHOT_URL is empty")
+        self._active_video_backend = "http-snapshot"
+        period = max(0.5, float(settings.camera_snapshot_interval_s))
+        while not self._stop_event.is_set():
+            started = time.monotonic()
+            try:
+                jpeg = await asyncio.to_thread(self._read_snapshot_sync)
+                await self._publish_jpeg(jpeg)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._connected = False
+                self._last_error = str(exc)
+                self._reconnects += 1
+                logger.warning("PegineLab camera snapshot failed: %s", exc)
+            await asyncio.sleep(max(0.1, period - (time.monotonic() - started)))
+
     async def _reader_loop(self) -> None:
         backend = settings.camera_video_backend.strip().lower()
         try:
+            if backend in {"http_snapshot", "http-snapshot", "snapshot"}:
+                await self._http_snapshot_reader_loop()
+                return
             if backend in {"ffmpeg", "ffmpeg_pipe", "auto"} and self._ffmpeg_executable():
                 try:
                     await self._ffmpeg_reader_loop()
@@ -557,7 +603,7 @@ class CameraHub:
         if self._imaging_service is None or not self._video_source_token:
             if not settings.camera_onvif_host:
                 raise RuntimeError("CAMERA_ONVIF_HOST is not configured")
-            self._discover_stream_uris_sync()
+            self._discover_stream_uris_sync(force_onvif=True)
         imaging = self._imaging_service
         if imaging is None or not self._video_source_token:
             self._autofocus_supported = False
@@ -586,7 +632,7 @@ class CameraHub:
         if not settings.camera_onvif_host:
             raise RuntimeError("CAMERA_ONVIF_HOST is not configured")
         if self._ptz_service is None or not self._ptz_profile_token:
-            self._discover_stream_uris_sync()
+            self._discover_stream_uris_sync(force_onvif=True)
         ptz = self._ptz_service
         if ptz is None or not self._ptz_profile_token:
             raise RuntimeError("ONVIF PTZ service is unavailable")
