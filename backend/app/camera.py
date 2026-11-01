@@ -94,6 +94,7 @@ class CameraHub:
         self._load_ptz_calibration()
         self._optical_zoom_supported: bool | None = None
         self._autofocus_supported: bool | None = None
+        self._manual_focus_supported: bool | None = None
         self._autofocus_mode = "unknown"
         self._focus_error = ""
 
@@ -161,6 +162,7 @@ class CameraHub:
             "optical_zoom_supported": self._optical_zoom_supported,
             "autofocus_requested": settings.camera_autofocus,
             "autofocus_supported": self._autofocus_supported,
+            "manual_focus_supported": self._manual_focus_supported,
             "autofocus_mode": self._autofocus_mode,
             "focus_error": self._focus_error,
         }
@@ -632,7 +634,8 @@ class CameraHub:
             request = imaging.create_type("SetImagingSettings")
             request.VideoSourceToken = self._video_source_token
             request.ImagingSettings = {"Focus": {"AutoFocusMode": "AUTO"}}
-            request.ForcePersistence = True
+            # Avoid unnecessary nonvolatile writes during focus testing.
+            request.ForcePersistence = False
             imaging.SetImagingSettings(request)
             self._autofocus_supported = True
             self._autofocus_mode = "AUTO"
@@ -647,6 +650,41 @@ class CameraHub:
 
     async def autofocus(self) -> dict[str, object]:
         return await asyncio.to_thread(self._set_autofocus_sync)
+
+    def _focus_step_sync(self, direction: str) -> dict[str, object]:
+        """Short bounded ONVIF Imaging focus pulse, never an indefinite move."""
+        if direction not in ("near", "far"):
+            raise ValueError("Invalid focus direction")
+        if not settings.camera_onvif_host:
+            raise RuntimeError("CAMERA_ONVIF_HOST is not configured")
+        if self._imaging_service is None or not self._video_source_token:
+            self._discover_stream_uris_sync(force_onvif=True)
+        imaging = self._imaging_service
+        if imaging is None or not self._video_source_token:
+            self._manual_focus_supported = False
+            raise RuntimeError("Camera has no ONVIF Imaging focus service")
+        try:
+            request = imaging.create_type("Move")
+            request.VideoSourceToken = self._video_source_token
+            request.Focus = {"Continuous": {"Speed": -0.35 if direction == "near" else 0.35}}
+            try:
+                imaging.Move(request)
+                self._manual_focus_supported = True
+                time.sleep(0.20)
+            finally:
+                stop = imaging.create_type("Stop")
+                stop.VideoSourceToken = self._video_source_token
+                try:
+                    imaging.Stop(stop)
+                except Exception:
+                    logger.exception("Imaging focus stop failed")
+            return {"ok": True, "manual_focus": True, "direction": direction}
+        except Exception as exc:
+            self._manual_focus_supported = False
+            raise RuntimeError(f"Manual focus unavailable on this camera: {exc}") from exc
+
+    async def focus_step(self, direction: str) -> dict[str, object]:
+        return await asyncio.to_thread(self._focus_step_sync, direction)
 
     def _load_ptz_calibration(self) -> None:
         try:
