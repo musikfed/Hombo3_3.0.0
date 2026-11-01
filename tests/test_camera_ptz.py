@@ -61,6 +61,28 @@ class FakePTZ:
         self.stops.append((request.PanTilt, request.Zoom))
 
 
+class FakeImaging:
+    def __init__(self):
+        self.moves = []
+        self.stops = 0
+        self.auto = []
+        self.fail_motion = False
+
+    def create_type(self, name):
+        return FakeRequest()
+
+    def Move(self, request):
+        if self.fail_motion:
+            raise RuntimeError("FixedFocus")
+        self.moves.append(request.Focus["Continuous"]["Speed"])
+
+    def Stop(self, request):
+        self.stops += 1
+
+    def SetImagingSettings(self, request):
+        self.auto.append((request.ImagingSettings, request.ForcePersistence))
+
+
 class PtzTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -97,6 +119,36 @@ class PtzTests(unittest.TestCase):
             asyncio.run(self.cam.ptz_move(0, 0, .4))
         self.assertFalse(self.cam._optical_zoom_supported)
         self.assertEqual(self.ptz.stops[-1], (False, True))
+
+    def test_focus_pulse_near_far_and_stop(self):
+        imaging = FakeImaging()
+        self.cam._imaging_service = imaging
+        self.cam._video_source_token = "src"
+        asyncio.run(self.cam.focus_step("near"))
+        asyncio.run(self.cam.focus_step("far"))
+        self.assertEqual(imaging.moves, [-0.35, 0.35])
+        self.assertEqual(imaging.stops, 2)
+        self.assertTrue(self.cam._manual_focus_supported)
+
+    def test_fixed_focus_rejected_and_stopped(self):
+        imaging = FakeImaging()
+        imaging.fail_motion = True
+        self.cam._imaging_service = imaging
+        self.cam._video_source_token = "src"
+        with self.assertRaisesRegex(RuntimeError, "FixedFocus"):
+            asyncio.run(self.cam.focus_step("near"))
+        self.assertEqual(imaging.stops, 1)
+        self.assertFalse(self.cam._manual_focus_supported)
+
+    def test_autofocus_is_not_persisted_to_flash(self):
+        imaging = FakeImaging()
+        self.cam._imaging_service = imaging
+        self.cam._video_source_token = "src"
+        result = asyncio.run(self.cam.autofocus())
+        self.assertTrue(result["ok"])
+        self.assertEqual(imaging.auto, [
+            ({"Focus": {"AutoFocusMode": "AUTO"}}, False),
+        ])
 
 
 if __name__ == "__main__":
