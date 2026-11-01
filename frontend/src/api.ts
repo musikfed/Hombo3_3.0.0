@@ -250,6 +250,11 @@ export const api = {
   ptz: (pan: number, tilt: number, zoom = 0) => request('/api/camera/ptz', {
     method: 'POST', body: JSON.stringify({ pan, tilt, zoom }),
   }),
+  cameraStatus: () => request<{pan_invert:boolean,tilt_invert:boolean,optical_zoom_supported:boolean|null,autofocus_supported:boolean|null}>('/api/camera/status'),
+  ptzCalibration: (pan_invert:boolean,tilt_invert:boolean) => request('/api/camera/ptz/calibration', {
+    method: 'POST', body: JSON.stringify({pan_invert,tilt_invert}),
+  }),
+  autofocus: () => request('/api/camera/autofocus', {method:'POST'}),
   visionStatus: () => request<VisionStatus>('/api/vision/status'),
   visionConfigure: (enabled: boolean, classes: string[]) => request<VisionStatus>('/api/vision/config', {
     method: 'POST', body: JSON.stringify({ enabled, classes }),
