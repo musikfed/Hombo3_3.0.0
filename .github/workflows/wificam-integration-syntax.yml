@@ -18,3 +18,19 @@ jobs:
           python -m py_compile backend/app/camera_speaker.py
           python -m py_compile backend/app/main.py
           python -m py_compile scripts/probe_wificam.py
+      - name: Mock ONVIF motor and zoom tests
+        run: python -m unittest discover -s tests -p 'test_camera_ptz.py'
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and compile dashboard
+        run: |
+          cd frontend
+          npm ci
+          npm run build
