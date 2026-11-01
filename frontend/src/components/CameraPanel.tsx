@@ -30,8 +30,15 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   const [videoTransport, setVideoTransport] = useState<'ws'|'mjpeg'|'paused'>('paused')
   const [browserVisible, setBrowserVisible] = useState(() => !document.hidden)
   useEffect(() => {
-    const onVisibility = () => setBrowserVisible(!document.hidden)
-    const onPageHide = () => setBrowserVisible(false)
+    const onVisibility = () => {
+      const visible = !document.hidden
+      if (!visible) setVideoTransport('paused')
+      setBrowserVisible(visible)
+    }
+    const onPageHide = () => {
+      setVideoTransport('paused')
+      setBrowserVisible(false)
+    }
     const onPageShow = () => setBrowserVisible(!document.hidden)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)
