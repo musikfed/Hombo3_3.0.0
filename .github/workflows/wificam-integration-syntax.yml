@@ -19,6 +19,10 @@ jobs:
           python -m py_compile backend/app/camera_speech.py
           python -m py_compile backend/app/main.py
           python -m py_compile scripts/probe_wificam.py
+      - name: Linux project lifecycle syntax and robot safety contract
+        run: |
+          bash -n start.sh stop.sh
+          python -m unittest discover -s tests -p 'test_project_lifecycle.py' -v
       - name: Mock ONVIF motor and zoom tests
         run: python -m unittest discover -s tests -p 'test_camera_ptz.py'
       - name: Mock STT WAV and operator authentication tests
