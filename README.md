@@ -2,6 +2,24 @@
 
 Hombo3 — отдельная система домашнего робота на **ESP32-S3-DevKitC-1 N16R8 (16 MB Flash + 8 MB Octal PSRAM)**. Ghost32 остаётся универсальной лабораторией/прошивальщиком плат. Hombo3 отвечает за конкретную машинку: шасси, дальномеры, ONVIF-камеру, голос, VectorProbe, локальное зрение, Ollama/LLM, RAG+Graph, MCP и OTA.
 
+## Запуск и остановка Hombo3 / Start and stop
+
+**Linux:** `bash start.sh` запускает уже существующий
+`START_HOMBO3_LINUX.sh`; `bash stop.sh` из второго терминала
+сначала посылает ESP32 команду **STOP моторов**, а только потом
+остановит backend Hombo3.
+
+**Windows PowerShell:** `.\start.ps1` и `.\stop.ps1` делают то же.
+Прежние `START_HOMBO3.cmd`, `START_HOMBOWIFI.cmd` и скрипты
+`START_HOMBO3_LINUX.sh`/ `START_HOMBOWIFI_LINUX.sh`
+**не меняли**.
+
+Если команда STOP моторов не подтверждена, скрипт оставляет
+сервер работающим: останови движение физически. Отдельный сервер
+YadroKreator на `:62404` и прошивка T23N на `:8090` не затрагиваются.
+
+[Инструкция RU](docs/START_STOP_RU.md) · [EN](docs/START_STOP_EN.md).
+
 ## Зафиксированный аппаратный baseline 3.0
 
 Пины ниже считаются **монтажным контрактом** проекта. После пайки они меняются только новой ревизией документации и `board_config.py`.
