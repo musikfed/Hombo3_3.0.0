@@ -259,12 +259,26 @@ export const api = {
     method:'POST',body:JSON.stringify({direction}),
   }),
   cameraVoiceAsk: (token:string, seconds=5, askLlm=true) =>
-    request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string}>(
+    request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string,
+             tools?:string[],pending_label?:string|null,session?:string}>(
       '/api/camera/voice-ask', {
         method:'POST',body:JSON.stringify({
-          access_token:token,seconds,ask_llm:askLlm,
+          access_token:token,seconds,ask_llm:askLlm,session:'camera',
         }),
       }),
+  cameraConverse: (token:string, text:string) =>
+    request<{ok:boolean,reply:string,tools:string[],pending_label?:string|null,session:string,queued:boolean}>(
+      '/api/camera/converse', {method:'POST',body:JSON.stringify({
+        access_token:token,text,session:'camera',
+      })}),
+  cameraVisualMemory: (token:string) =>
+    request<{memories:Array<{id:string,label:string,note:string,image_saved:number,created_utc:string}>,
+             dialogue:{pending_label?:string|null,planner_model:string,vision_model:string,save_images:boolean}}> (
+      '/api/camera/visual-memory', {method:'POST',body:JSON.stringify({access_token:token})}),
+  cameraVisualMemoryDelete: (token:string, id:string) =>
+    request<{deleted:boolean}>('/api/camera/visual-memory/delete', {
+      method:'POST',body:JSON.stringify({access_token:token,id}),
+    }),
 
   visionStatus: () => request<VisionStatus>('/api/vision/status'),
   visionConfigure: (enabled: boolean, classes: string[]) => request<VisionStatus>('/api/vision/config', {
