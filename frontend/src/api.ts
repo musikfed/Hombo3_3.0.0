@@ -273,11 +273,19 @@ export const api = {
       })}),
   cameraVisualMemory: (token:string) =>
     request<{memories:Array<{id:string,label:string,note:string,image_saved:number,created_utc:string}>,
-             dialogue:{pending_label?:string|null,planner_model:string,vision_model:string,save_images:boolean}}> (
+             dialogue:{pending_label?:string|null,planner_model:string,vision_model:string,save_images:boolean,
+               workflow:{approved_labels:number,approved_images:number,reviewed_yolo_boxes:number,training_started:boolean,model_updated:boolean}}}> (
       '/api/camera/visual-memory', {method:'POST',body:JSON.stringify({access_token:token})}),
   cameraVisualMemoryDelete: (token:string, id:string) =>
     request<{deleted:boolean}>('/api/camera/visual-memory/delete', {
       method:'POST',body:JSON.stringify({access_token:token,id}),
+    }),
+  cameraVisualReviewExport: (token:string) =>
+    request<{ok:boolean,exported:number,path:string|null,stage:string,workflow:{
+      approved_labels:number,approved_images:number,ready_for_training?:boolean,trainable_yolo_examples:number,
+      training_started:boolean,model_updated:boolean
+    }}>('/api/camera/visual-memory/export-review',{
+      method:'POST',body:JSON.stringify({access_token:token}),
     }),
 
   visionStatus: () => request<VisionStatus>('/api/vision/status'),
