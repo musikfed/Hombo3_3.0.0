@@ -46,11 +46,25 @@ from .skills import skill_store
 from .tts import render_pcm
 from .tuning import tuning_store
 from .vision import vision
+from .visual_memory import VisualMemory
+from .visual_dialogue import VisualDialogue, OllamaGateway
 from .device_update import DeviceUpdater
 
 robot = RobotClient()
 device_updater = DeviceUpdater(robot)
 ollama = OllamaClient()
+visual_dialogue = VisualDialogue(
+    gateway=OllamaGateway(settings.ollama_base_url, settings.ollama_timeout_s),
+    memories=VisualMemory(settings.root_dir / "data" / "visual-memory.sqlite3",
+                          settings.root_dir / "data" / "visual-examples"),
+    frame_provider=camera_hub.latest_jpeg,
+    frame_status=camera_hub.status,
+    detect=vision.recognize_once,
+    planner_model=settings.camera_dialogue_planner_model,
+    vision_model=settings.camera_dialogue_vlm_model,
+    save_images=settings.camera_dialogue_save_images,
+    allow_cpu_fallback=settings.camera_dialogue_cpu_fallback,
+)
 scenarios = ScenarioEngine()
 telemetry_cache: dict[str, Any] = {"connected": False}
 telemetry_clients: set[WebSocket] = set()
@@ -87,6 +101,19 @@ class CameraVoiceRequest(BaseModel):
     access_token: str = Field(min_length=1, max_length=512)
     seconds: int = Field(default=5, ge=2, le=10)
     ask_llm: bool = True
+    session: str = Field(default="camera", pattern=r"^[a-zA-Z0-9_-]{1,40}$")
+
+
+class CameraConversationRequest(BaseModel):
+    access_token: str = Field(min_length=1, max_length=512)
+    text: str = Field(min_length=1, max_length=1500)
+    session: str = Field(default="camera", pattern=r"^[a-zA-Z0-9_-]{1,40}$")
+
+
+class CameraMemoryRequest(BaseModel):
+    access_token: str = Field(min_length=1, max_length=512)
+    id: str = Field(default="", pattern=r"^[0-9a-f]{0,32}$")
+
 
 
 class CameraFocusStepRequest(BaseModel):
@@ -647,18 +674,78 @@ async def camera_voice_ask(request: CameraVoiceRequest) -> dict[str, Any]:
             return {"ok": True, "transcript": "", "reply": "", "queued": False}
         if not request.ask_llm:
             return {"ok": True, "transcript": transcript, "reply": "", "queued": False}
-        decision = await ollama.decide(
-            transcript, telemetry_cache, False,
-            build_agent_context(transcript, telemetry_cache, vision.status()),
-        )
-        # Always disallow actions from microphone input. Only speech output.
-        reply = (decision.say or "").strip()
+        if settings.camera_dialogue_enabled:
+            outcome = await visual_dialogue.respond(transcript, session=request.session)
+            reply = outcome["reply"]
+        else:
+            decision = await ollama.decide(
+                transcript, telemetry_cache, False,
+                build_agent_context(transcript, telemetry_cache, vision.status()),
+            )
+            outcome = {"tools": [], "pending_label": None, "session": request.session}
+            reply = (decision.say or "").strip()
+        # Speech input can never execute motor actions. Only reply/TTS.
         queued = await announcer.say(reply, "observation", 0.0) if reply else False
         return {"ok": True, "transcript": transcript, "reply": reply,
-                "queued": queued, "speech_output": settings.speech_output}
+                "queued": queued, "speech_output": settings.speech_output,
+                "tools": outcome.get("tools", []),
+                "pending_label": outcome.get("pending_label"),
+                "session": request.session}
     except Exception as exc:
         # Do not log raw microphone samples, transcript or API keys.
         raise HTTPException(status_code=502, detail=f"Camera voice pipeline: {type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/api/camera/converse")
+async def camera_converse(request: CameraConversationRequest) -> dict[str, Any]:
+    """Text turn in the SAME conversation as the camera microphone turns.
+
+    The planner decides which perception tool to use, not a UI tool button.
+    The operator credential is kept outside Git and never persisted.
+    """
+    try:
+        require_operator_token(request.access_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not settings.camera_dialogue_enabled:
+        raise HTTPException(status_code=503, detail="CAMERA_DIALOGUE_ENABLED is false")
+    try:
+        result = await visual_dialogue.respond(request.text, session=request.session)
+        queued = await announcer.say(result["reply"], "observation", 0.0)
+        return {"ok": True, **result, "queued": queued, "speech_output": settings.speech_output}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Visual conversation failed: " + type(exc).__name__) from exc
+
+
+@app.post("/api/camera/visual-memory")
+async def camera_visual_memories(request: CameraMemoryRequest) -> dict[str, Any]:
+    try:
+        require_operator_token(request.access_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not settings.camera_dialogue_enabled:
+        raise HTTPException(status_code=503, detail="Camera dialogue disabled")
+    return {"memories": visual_dialogue.memories.list(50),
+            "dialogue": visual_dialogue.status()}
+
+
+@app.post("/api/camera/visual-memory/delete")
+async def camera_visual_memory_delete(request: CameraMemoryRequest) -> dict[str, Any]:
+    try:
+        require_operator_token(request.access_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not settings.camera_dialogue_enabled:
+        raise HTTPException(status_code=503, detail="Camera dialogue disabled")
+    if len(request.id) != 32:
+        raise HTTPException(status_code=400, detail="Memory identifier required")
+    return {"deleted": visual_dialogue.memories.delete(request.id)}
 
 
 @app.get("/api/camera/audio")
