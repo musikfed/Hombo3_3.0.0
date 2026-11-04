@@ -92,6 +92,60 @@ class VisualMemory:
                 path.unlink(missing_ok=True)
         return bool(result.rowcount)
 
+    def review_status(self) -> dict:
+        """Workflow stage counts; none implies a trained or deployment-ready model."""
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS approved_labels, "
+                "COALESCE(SUM(image_saved),0) AS approved_images "
+                "FROM visual_memories"
+            ).fetchone()
+        return {
+            "approved_labels": row["approved_labels"],
+            "approved_images": row["approved_images"],
+            "candidate_annotations": row["approved_images"],
+            "reviewed_yolo_boxes": 0,
+            "trainable_yolo_examples": 0,
+            "training_started": False,
+            "model_updated": False,
+            "stage": "collect_operator_confirmed_examples",
+            "next": "Review object boxes/classes manually before any training",
+        }
+
+    def export_review_queue(self, directory: Path) -> dict:
+        """Export ONLY user-confirmed metadata to a private JSONL review queue.
+
+        Raw YOLO detections are *proposals*, not labels to train on blindly.
+        """
+        directory = Path(directory)
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id,created_utc,label,note,detected_json,image_saved "
+                "FROM visual_memories ORDER BY created_utc"
+            ).fetchall()
+        if not rows:
+            return {"exported": 0, "path": None,
+                    "stage": "no_confirmed_examples"}
+        output = directory / ("review-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                              + "-" + uuid4().hex[:8] + ".jsonl")
+        fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            for row in rows:
+                image = (self.images / (row["id"] + ".jpg")) if row["image_saved"] else None
+                if image is not None and (image.is_symlink() or not image.is_file()):
+                    image = None
+                item = {
+                    "id": row["id"], "label_confirmed_by_operator": row["label"],
+                    "description": row["note"],
+                    "camera_frame_path": str(image) if image else None,
+                    "proposed_yolo_detections_not_approved": json.loads(row["detected_json"]),
+                    "bounding_boxes_approved": False, "ready_for_training": False,
+                }
+                stream.write(json.dumps(item, ensure_ascii=False) + "\n")
+        return {"exported": len(rows), "path": str(output),
+                "stage": "await_box_review_before_training"}
+
     def match_scene(self, jpeg: bytes, limit: int = 12) -> list[dict]:
         """Conservative ORB matching of *scenes*, not guaranteed object identity."""
         if not jpeg.startswith(b"\xff\xd8") or len(jpeg) > 3_000_000:
