@@ -213,7 +213,7 @@ class OllamaClient:
             ],
             "stream": False,
             "think": False,
-            "keep_alive": "30m",
+            "keep_alive": 0 if settings.camera_dialogue_enabled else "30m",
             "options": {
                 "temperature": 0.3,
                 "num_ctx": 4096,
@@ -268,7 +268,7 @@ class OllamaClient:
             # than forcing a full JSON grammar/schema for every local decision.
             "format": "json",
             "think": False,
-            "keep_alive": "30m",
+            "keep_alive": 0 if settings.camera_dialogue_enabled else "30m",
             "options": {
                 "temperature": 0,
                 "num_ctx": 4096,

@@ -66,6 +66,7 @@ class VisionManager:
     _announce: Announce | None = field(default=None, init=False, repr=False)
     _last_labels: tuple[str, ...] = field(default_factory=tuple, init=False, repr=False)
     _model: Any | None = field(default=None, init=False, repr=False)
+    _inference_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     @property
     def bundled_model_path(self) -> Path:
@@ -249,6 +250,13 @@ class VisionManager:
             })
         return detections
 
+    async def recognize_once(self, jpeg: bytes) -> list[dict[str, Any]]:
+        """Fresh on-demand YOLO inference sharing the background worker's model."""
+        if not self.available:
+            raise RuntimeError("CPU YOLO model is not installed/configured on Acer")
+        async with self._inference_lock:
+            return await asyncio.to_thread(self._recognize_sync, jpeg)
+
     async def _announce_new_objects(self, labels: tuple[str, ...]) -> None:
         if self._announce is None:
             return
@@ -269,7 +277,7 @@ class VisionManager:
                 if not jpeg:
                     await asyncio.sleep(0.6)
                     continue
-                detections = await asyncio.to_thread(self._recognize_sync, jpeg)
+                detections = await self.recognize_once(jpeg)
                 labels = tuple(sorted({str(item["label"]) for item in detections}))
                 if labels != self._last_labels:
                     log_event("INFO", "vision", "Visible object set changed", {

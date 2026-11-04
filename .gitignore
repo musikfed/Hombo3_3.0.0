@@ -14,3 +14,8 @@ firmware/hombowifi_s3_micropython/device/*.prev
 firmware/hombowifi_s3_micropython/device/.hombowifi_ota/
 .DS_Store
 firmware/legacy_arduino_s3_uno/secrets.h
+
+# Private operator-approved visual memory and review exports; never publish images
+data/visual-examples/
+data/visual-training-review/
+data/visual-memory.sqlite3*

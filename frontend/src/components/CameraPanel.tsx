@@ -25,6 +25,10 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
   const [voiceToken, setVoiceToken] = useState('')
   const [voiceBusy, setVoiceBusy] = useState(false)
   const [voiceResult, setVoiceResult] = useState('Микрофон для STT выключен по умолчанию')
+  const [conversationText, setConversationText] = useState('')
+  const [conversationHistory, setConversationHistory] = useState<Array<{utterance:string,reply:string,tools:string[]}>>([])
+  const [visualMemories, setVisualMemories] = useState<Array<{id:string,label:string,note:string,image_saved:number}>>([])
+  const [memoryNote, setMemoryNote] = useState('Память по умолчанию хранит подтверждённые названия, не фотографии.')
 
   useEffect(() => {
     api.cameraStatus().then(state=>{
@@ -172,9 +176,57 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       const result=await api.cameraVoiceAsk(voiceToken,5,askLlm)
       setVoiceResult('Распознано: '+(result.transcript||'тишина')+
         (askLlm?'\\nОтвет ИИ: '+(result.reply||'нет ответа')+
+          '\\nИнструменты: '+(result.tools?.join(', ')||'обычный разговор')+
           '\\nTTS: '+(result.queued?'поставлен в очередь':'не отправлен'):''))
     }catch(error){setVoiceResult('Голосовой тракт недоступен: '+String(error))}
     finally{setVoiceBusy(false)}
+  }
+  const sendConversation = async () => {
+    const phrase=conversationText.trim()
+    if(!voiceToken || !phrase || voiceBusy){setMemoryNote('Для беседы нужны реплика и настроенный операторский токен');return}
+    setVoiceBusy(true)
+    setConversationText('')
+    try{
+      const response=await api.cameraConverse(voiceToken,phrase)
+      setConversationHistory(old=>[...old,{utterance:phrase,reply:response.reply,
+        tools:response.tools||[]}].slice(-12))
+      setMemoryNote(response.pending_label
+        ? 'Ожидает подтверждения: '+response.pending_label+' — скажи или напиши «да, запомни».'
+        : 'Диалог продолжается. Использованные инструменты показаны рядом с ответом.')
+      await api.cameraVisualMemory(voiceToken).then(r=>setVisualMemories(r.memories)).catch(()=>{})
+    }catch(error){setMemoryNote('Диалог недоступен: '+String(error))}
+    finally{setVoiceBusy(false)}
+  }
+  const loadVisualMemory = async () => {
+    if(!voiceToken){setMemoryNote('Нужен операторский токен доступа');return}
+    try{
+      const result=await api.cameraVisualMemory(voiceToken)
+      setVisualMemories(result.memories)
+      setMemoryNote(result.dialogue.pending_label
+        ? 'Ожидает подтверждения: '+result.dialogue.pending_label
+        : 'Визуальная память: '+result.dialogue.workflow.approved_labels+' подтверждённых меток · '+
+          result.dialogue.workflow.approved_images+' сохранённых кадров · '+
+          result.dialogue.workflow.reviewed_yolo_boxes+' проверенных рамок · обучение не запущено.')
+    }catch(error){setMemoryNote('Память недоступна: '+String(error))}
+  }
+  const exportVisualReview = async () => {
+    if(!voiceToken){setMemoryNote('Нужен операторский токен');return}
+    setVoiceBusy(true)
+    try{
+      const result=await api.cameraVisualReviewExport(voiceToken)
+      setMemoryNote(result.exported>0
+        ? 'Экспортировано '+result.exported+' подтверждённых примеров для ручной проверки разметки. Файл на Acer: '+result.path+
+          '. Обучение весов НЕ запущено; рамки YOLO требуют ручного подтверждения.'
+        : 'Подтверждённых примеров для экспорта нет. Сначала назови предмет и подтверди запись.')
+    }catch(error){setMemoryNote('Экспорт не выполнен: '+String(error))}
+    finally{setVoiceBusy(false)}
+  }
+  const deleteVisualMemory = async (id:string) => {
+    if(!voiceToken || !window.confirm('Удалить визуальное воспоминание и его локальный пример?'))return
+    try{
+      await api.cameraVisualMemoryDelete(voiceToken,id)
+      await loadVisualMemory()
+    }catch(error){setMemoryNote('Не удалось удалить воспоминание: '+String(error))}
   }
   const runAutofocus = () => {
     api.autofocus().then(()=>setPtzNote('ONVIF автофокус включён (проверь резкость в кадре)')).catch(error=>setPtzNote('Автофокус не поддержан: '+String(error)))
@@ -222,7 +274,37 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
         <button disabled={voiceBusy} onClick={()=>void askCameraVoice(true)}>Спросить ИИ голосом</button>
       </div>
       <small className="vision-note" style={{whiteSpace:'pre-line'}}>{voiceResult}</small>
-      <small className="vision-note">По нажатию, не постоянно. Для вывода ответа через камеру настрой SPEECH_OUTPUT=camera_ssh и проверь динамик. Звук с камеры не хранится в браузере.</small>
+      <small className="vision-note">По нажатию, не постоянно. При CAMERA_DIALOGUE_ENABLED=true ИИ сам выбирает зрительные инструменты во время реплик; постоянное прослушивание/VAD ещё не включено. Для звука камеры проверь SPEECH_OUTPUT=camera_ssh.</small>
+    </div>
+    <div className="camera-audio-row">
+      <strong>Разговор с визуальной памятью</strong>
+      <small className="vision-note">Та же беседа, что и через микрофон: можно писать реплику или продолжить голосом. Не нужны отдельные кнопки для YOLO/OpenCV — инструменты выбирает модель.</small>
+      <div className="zoom-row">
+        <input aria-label="Реплика ассистенту" type="text" value={conversationText}
+          onChange={event=>setConversationText(event.target.value)}
+          onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();void sendConversation()}}}
+          placeholder="Например: а что я показываю теперь?" maxLength={1500}/>
+        <button disabled={voiceBusy||!conversationText.trim()} onClick={()=>void sendConversation()}>Сказать ассистенту</button>
+        <button disabled={voiceBusy||!voiceToken} onClick={()=>void loadVisualMemory()}>Моя визуальная память</button>
+        <button disabled={voiceBusy||!voiceToken} onClick={()=>void exportVisualReview()}>Экспорт примеров на проверку</button>
+      </div>
+      <small className="vision-note" style={{whiteSpace:'pre-line'}}>{memoryNote}</small>
+      <div aria-live="polite">
+        {conversationHistory.map((turn,index)=>(
+          <div key={index} className="vision-note" style={{padding:'8px 0',borderBottom:'1px solid #94a3b8'}}>
+            <strong>Ты:</strong> {turn.utterance}
+            <div><strong>Ассистент:</strong> {turn.reply}</div>
+            <small>Инструменты: {turn.tools.join(', ')||'беседа без камеры'}</small>
+          </div>
+        ))}
+      </div>
+      {visualMemories.map(memory=>(
+        <div className="vision-note" key={memory.id}>
+          <strong>{memory.label}</strong> · {memory.image_saved?'Подтверждённый кадр сохранён':'Только описание'}
+          <div>{memory.note}</div>
+          <button disabled={voiceBusy} onClick={()=>void deleteVisualMemory(memory.id)}>Удалить воспоминание</button>
+        </div>
+      ))}
     </div>
 
     <div className="camera-controls">

@@ -259,12 +259,34 @@ export const api = {
     method:'POST',body:JSON.stringify({direction}),
   }),
   cameraVoiceAsk: (token:string, seconds=5, askLlm=true) =>
-    request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string}>(
+    request<{ok:boolean,transcript:string,reply:string,queued:boolean,speech_output?:string,
+             tools?:string[],pending_label?:string|null,session?:string}>(
       '/api/camera/voice-ask', {
         method:'POST',body:JSON.stringify({
-          access_token:token,seconds,ask_llm:askLlm,
+          access_token:token,seconds,ask_llm:askLlm,session:'camera',
         }),
       }),
+  cameraConverse: (token:string, text:string) =>
+    request<{ok:boolean,reply:string,tools:string[],pending_label?:string|null,session:string,queued:boolean}>(
+      '/api/camera/converse', {method:'POST',body:JSON.stringify({
+        access_token:token,text,session:'camera',
+      })}),
+  cameraVisualMemory: (token:string) =>
+    request<{memories:Array<{id:string,label:string,note:string,image_saved:number,created_utc:string}>,
+             dialogue:{pending_label?:string|null,planner_model:string,vision_model:string,save_images:boolean,
+               workflow:{approved_labels:number,approved_images:number,reviewed_yolo_boxes:number,training_started:boolean,model_updated:boolean}}}> (
+      '/api/camera/visual-memory', {method:'POST',body:JSON.stringify({access_token:token})}),
+  cameraVisualMemoryDelete: (token:string, id:string) =>
+    request<{deleted:boolean}>('/api/camera/visual-memory/delete', {
+      method:'POST',body:JSON.stringify({access_token:token,id}),
+    }),
+  cameraVisualReviewExport: (token:string) =>
+    request<{ok:boolean,exported:number,path:string|null,stage:string,workflow:{
+      approved_labels:number,approved_images:number,ready_for_training?:boolean,trainable_yolo_examples:number,
+      training_started:boolean,model_updated:boolean
+    }}>('/api/camera/visual-memory/export-review',{
+      method:'POST',body:JSON.stringify({access_token:token}),
+    }),
 
   visionStatus: () => request<VisionStatus>('/api/vision/status'),
   visionConfigure: (enabled: boolean, classes: string[]) => request<VisionStatus>('/api/vision/config', {
