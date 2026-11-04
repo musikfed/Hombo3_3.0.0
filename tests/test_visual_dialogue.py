@@ -132,6 +132,21 @@ class DialogueTests(unittest.IsolatedAsyncioTestCase):
         self.frame.assert_not_awaited()
         self.assertEqual(len(gw.calls), 1)
 
+    async def test_rejected_memory_does_not_save_image_or_metadata(self):
+        dialogue, _ = self.make([
+            '{"intent":"teach","label":"реле","reply":"Проверяю","use_yolo":false}',
+            '{"intent":"confirm","reply":"Хорошо"}',
+        ], save_images=True)
+        await dialogue.respond("Это реле, запомни позже")
+        result = await dialogue.respond("Нет, не сохраняй")
+        self.assertIn("не сохраняю", result["reply"])
+        self.assertIsNone(result["pending_label"])
+        self.assertEqual(self.memory.list(), [])
+
+    async def test_planner_cannot_fabricate_vision_without_tool_use(self):
+        plan = _plan('{"intent":"observe","reply":"Вижу три чашки","use_yolo":false,"use_cv":false,"use_vlm":false}')
+        self.assertTrue(plan["use_vlm"])
+
     async def test_visual_confirmation_can_store_image_when_opted_in(self):
         dialogue, _ = self.make([
             '{"intent":"teach","label":"мой куб","reply":"Куб","use_vlm":false}',
