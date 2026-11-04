@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     camera_stt_model: str = "whisper-1"
     camera_stt_language: str = "ru"
     camera_voice_clip_seconds: int = 5
+
+    # Opt-in conversation-first vision. The operator still controls mic activation
+    # and imaging, while the LLM dynamically selects tools during each exchange.
+    camera_dialogue_enabled: bool = False
+    camera_dialogue_planner_model: str = "qwen3:4b-instruct"
+    camera_dialogue_vlm_model: str = "qwen2.5vl:7b"
+    camera_dialogue_save_images: bool = False
+    camera_dialogue_cpu_fallback: bool = True
     camera_onvif_host: str = "192.168.1.62"
     camera_onvif_port: int = 8000
     camera_username: str = ""
