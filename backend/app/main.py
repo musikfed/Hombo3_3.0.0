@@ -748,6 +748,22 @@ async def camera_visual_memory_delete(request: CameraMemoryRequest) -> dict[str,
     return {"deleted": visual_dialogue.memories.delete(request.id)}
 
 
+@app.post("/api/camera/visual-memory/export-review")
+async def camera_visual_export_review(request: CameraMemoryRequest) -> dict[str, Any]:
+    """Export confirmed examples for manual annotation review, NOT model training."""
+    try:
+        require_operator_token(request.access_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not settings.camera_dialogue_enabled:
+        raise HTTPException(status_code=503, detail="Camera dialogue disabled")
+    result = visual_dialogue.memories.export_review_queue(
+        settings.root_dir / "data" / "visual-training-review")
+    return {"ok": True, **result, "workflow": visual_dialogue.memories.review_status()}
+
+
 @app.get("/api/camera/audio")
 async def camera_audio() -> StreamingResponse:
     if not camera_hub.configured:
