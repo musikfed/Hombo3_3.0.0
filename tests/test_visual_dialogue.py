@@ -32,6 +32,27 @@ class MemoryTests(unittest.TestCase):
             self.assertEqual(len(memory.list()), 1)
             self.assertTrue(memory.delete(saved["id"]))
 
+    def test_training_review_export_requires_annotation_review(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            memory = VisualMemory(folder / "state.sqlite3", folder / "images")
+            self.assertEqual(memory.export_review_queue(folder / "review")["exported"], 0)
+            memory.remember("мой реле", "название подтверждено", [
+                {"label": "cup", "x": .1, "y": .2, "width": .3, "height": .4},
+            ], jpeg=bytes([255, 216, 255]), save_image=True)
+            status = memory.review_status()
+            self.assertEqual(status["approved_images"], 1)
+            self.assertEqual(status["reviewed_yolo_boxes"], 0)
+            self.assertFalse(status["model_updated"])
+            report = memory.export_review_queue(folder / "review")
+            self.assertEqual(report["exported"], 1)
+            self.assertEqual(Path(report["path"]).stat().st_mode & 0o777, 0o600)
+            item = __import__("json").loads(Path(report["path"]).read_text().strip())
+            self.assertTrue(item["camera_frame_path"])
+            self.assertFalse(item["bounding_boxes_approved"])
+            self.assertFalse(item["ready_for_training"])
+            self.assertEqual(item["label_confirmed_by_operator"], "мой реле")
+
     def test_malformed_image_rejected_and_default_no_persistence(self):
         with tempfile.TemporaryDirectory() as d:
             memory = VisualMemory(Path(d) / "m.sqlite3", Path(d) / "frames")
