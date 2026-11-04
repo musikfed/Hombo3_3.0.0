@@ -23,6 +23,10 @@ class VisualMemory:
         self.images = Path(image_dir)
         self._lock = threading.RLock()
         self.db.parent.mkdir(parents=True, exist_ok=True)
+        # Private visual annotations, not a browser cache or Git-tracked file.
+        fd = os.open(self.db, os.O_CREAT | os.O_RDWR, 0o600)
+        os.close(fd)
+        os.chmod(self.db, 0o600)
         with self._connect() as conn:
             conn.execute("""CREATE TABLE IF NOT EXISTS visual_memories (
                 id TEXT PRIMARY KEY, created_utc TEXT NOT NULL,
