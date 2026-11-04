@@ -210,6 +210,7 @@ class VisualDialogue:
         return {"session": name, "turns": len(state.history) // 2,
                 "pending_label": state.pending["label"] if state.pending else None,
                 "memory_count_preview": self.memories.list(5),
+                "workflow": self.memories.review_status(),
                 "planner_model": self.planner_model,
                 "vision_model": self.vision_model, "save_images": self.save_images,
                 "model_policy": "planner CPU, VLM on demand, keep_alive=0; other apps not locked"}
