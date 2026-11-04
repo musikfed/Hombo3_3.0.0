@@ -54,6 +54,10 @@ _CONFIRM_WORDS = re.compile(
     r"(?iu)(?:\bда\b|\bверно\b|\bправильно\b|запомни|сохран|подтвержд|"
     r"\byes\b|\bconfirm\b|\bremember\b|\bsave\b)"
 )
+_REJECT_WORDS = re.compile(
+    r"(?iu)(?:\bнет\b|отмен|не\s+(?:надо|запомн|сохран)|"
+    r"\bno\b|\bcancel\b|don.t\s+(?:save|remember))"
+)
 
 
 class OllamaGateway:
@@ -144,6 +148,9 @@ def _plan(text: str) -> dict:
               "label": str(obj.get("label") or "")[:90]}
     for key in ("use_yolo", "use_cv", "use_vlm"):
         result[key] = obj.get(key) is True
+    if intent == "observe" and not any(result[k] for k in ("use_yolo", "use_cv", "use_vlm")):
+        # A planner cannot answer a visual question without examining real pixels.
+        result["use_vlm"] = True
     return result
 
 
@@ -233,7 +240,10 @@ class VisualDialogue:
             evidence: dict = {}
             if plan["intent"] == "confirm":
                 pending = state.pending
-                if pending and _CONFIRM_WORDS.search(utterance):
+                if pending and _REJECT_WORDS.search(utterance):
+                    state.pending = None
+                    reply = "Хорошо, этот пример не сохраняю."
+                elif pending and _CONFIRM_WORDS.search(utterance):
                     record = self.memories.remember(
                         pending["label"], pending["note"],
                         pending["detections"], pending["jpeg"],
