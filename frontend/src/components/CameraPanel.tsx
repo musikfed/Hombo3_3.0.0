@@ -204,8 +204,22 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
       setVisualMemories(result.memories)
       setMemoryNote(result.dialogue.pending_label
         ? 'Ожидает подтверждения: '+result.dialogue.pending_label
-        : 'Визуальная память: '+result.memories.length+' последних записей. Изображения сохраняются только при явной настройке.')
+        : 'Визуальная память: '+result.dialogue.workflow.approved_labels+' подтверждённых меток · '+
+          result.dialogue.workflow.approved_images+' сохранённых кадров · '+
+          result.dialogue.workflow.reviewed_yolo_boxes+' проверенных рамок · обучение не запущено.')
     }catch(error){setMemoryNote('Память недоступна: '+String(error))}
+  }
+  const exportVisualReview = async () => {
+    if(!voiceToken){setMemoryNote('Нужен операторский токен');return}
+    setVoiceBusy(true)
+    try{
+      const result=await api.cameraVisualReviewExport(voiceToken)
+      setMemoryNote(result.exported>0
+        ? 'Экспортировано '+result.exported+' подтверждённых примеров для ручной проверки разметки. Файл на Acer: '+result.path+
+          '. Обучение весов НЕ запущено; рамки YOLO требуют ручного подтверждения.'
+        : 'Подтверждённых примеров для экспорта нет. Сначала назови предмет и подтверди запись.')
+    }catch(error){setMemoryNote('Экспорт не выполнен: '+String(error))}
+    finally{setVoiceBusy(false)}
   }
   const deleteVisualMemory = async (id:string) => {
     if(!voiceToken || !window.confirm('Удалить визуальное воспоминание и его локальный пример?'))return
@@ -272,6 +286,7 @@ export function CameraPanel({ vision, onPtz, onVisionToggle }: {
           placeholder="Например: а что я показываю теперь?" maxLength={1500}/>
         <button disabled={voiceBusy||!conversationText.trim()} onClick={()=>void sendConversation()}>Сказать ассистенту</button>
         <button disabled={voiceBusy||!voiceToken} onClick={()=>void loadVisualMemory()}>Моя визуальная память</button>
+        <button disabled={voiceBusy||!voiceToken} onClick={()=>void exportVisualReview()}>Экспорт примеров на проверку</button>
       </div>
       <small className="vision-note" style={{whiteSpace:'pre-line'}}>{memoryNote}</small>
       <div aria-live="polite">
