@@ -170,3 +170,10 @@ T23N SSH/Raptor speaker. Off by default with operator token and
 only triggered manually in short audio clips. See
 [Guide RU](docs/CAMERA_PTZ_AUDIO_RU.md) /
 [Guide EN](docs/CAMERA_PTZ_AUDIO_EN.md).
+
+
+## Project showcase · 11 языков
+
+[**Visual project presentation and contacts**](docs/showcase/README.md)
+
+![Hombo3_3.0.0 project flow](docs/showcase/overview.svg)
