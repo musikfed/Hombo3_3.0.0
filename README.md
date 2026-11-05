@@ -176,4 +176,3 @@ only triggered manually in short audio clips. See
 
 [**Visual project presentation and contacts**](docs/showcase/README.md)
 
-![Hombo3_3.0.0 project flow](docs/showcase/overview.svg)
