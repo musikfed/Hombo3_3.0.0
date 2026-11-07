@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "id": "Hombo3_3.0.0",
+  "title": "Hombo3 · Robot Control Center",
+  "version": "3.0",
+  "description": "Hombo3 — отдельная система домашнего робота на ESP32-S3-DevKitC-1 N16R8 (16 MB Flash + 8 MB Octal PSRAM). Ghost32 остаётся универсальной лабораторией/прошивальщиком плат. Hombo3 отвечает за конкретную машинку: шасси, дальномеры, ONVIF-камеру, голос, VectorProbe, локальное зрение, Ollama/LLM, RAG+Graph, MCP и OTA.",
+  "subtitle": null,
+  "tags": [
+    "ESP32-S3",
+    "Robot",
+    "FastAPI",
+    "Ollama",
+    "ONVIF"
+  ],
+  "visibility": "public",
+  "publication": "publish_on_merge",
+  "public_private_approved": false,
+  "display_mode": "interface",
+  "status": "Активная разработка · аппаратный baseline 3.0",
+  "repo_url": "https://github.com/musikfed/Hombo3_3.0.0",
+  "screenshots": [
+    "vitrine/screenshots/main.png",
+    "vitrine/screenshots/extra-2.png",
+    "vitrine/screenshots/extra-3.png"
+  ],
+  "cover": "vitrine/generated/cover.svg",
+  "cover_type": "schematic-not-screenshot",
+  "screenshot_source": "original-repository-file",
+  "screenshot_origin": "webui (1).png, webui (2).png, webui (3).png"
+}
